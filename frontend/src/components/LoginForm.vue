@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <div class="login-container">
     <!-- 背景装饰 -->
     <div class="background-decoration">

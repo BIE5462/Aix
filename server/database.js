@@ -23,14 +23,33 @@ const initDatabase = async () => {
       CREATE TABLE IF NOT EXISTS users (
         id INT AUTO_INCREMENT PRIMARY KEY,
         username VARCHAR(50) UNIQUE NOT NULL,
-        email VARCHAR(100) UNIQUE NOT NULL,
+        email VARCHAR(100) UNIQUE NULL,
         password VARCHAR(255) NOT NULL,
+        is_admin TINYINT(1) DEFAULT 0,
+        is_active TINYINT(1) DEFAULT 1,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        last_login_at TIMESTAMP NULL COMMENT '最后登录时间',
         INDEX idx_username (username),
         INDEX idx_email (email)
       )
     `);
+    
+    // 为现有数据库添加 last_login_at 列（如果不存在）
+    try {
+      await pool.execute(`ALTER TABLE users ADD COLUMN last_login_at TIMESTAMP NULL COMMENT '最后登录时间'`);
+    } catch (alterError) {
+      if (alterError.code !== 'ER_DUP_FIELDNAME') {
+        throw alterError;
+      }
+    }
+    
+    // 修改 email 列允许 NULL
+    try {
+      await pool.execute(`ALTER TABLE users MODIFY COLUMN email VARCHAR(100) UNIQUE NULL`);
+    } catch (alterError) {
+      // 忽略错误
+    }
     
     // 创建历史记录表
     await pool.execute(`
@@ -43,12 +62,35 @@ const initDatabase = async () => {
         reference_image VARCHAR(500),
         generated_images JSON,
         user_id INT NULL,
+        model_id INT NULL COMMENT '使用的AI模型ID',
+        video_data JSON NULL COMMENT '视频数据',
+        tags JSON NULL COMMENT '标签',
+        selected_common_prompts JSON NULL COMMENT '选中的常用提示词',
+        selected_reference_images JSON NULL COMMENT '选中的参考图片',
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
         FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
         INDEX idx_user_id (user_id)
       )
     `);
+    
+    // 为现有 history_records 表添加缺失列
+    const historyRecordsColumns = [
+      { name: 'model_id', def: "INT NULL COMMENT '使用的AI模型ID'" },
+      { name: 'video_data', def: "JSON NULL COMMENT '视频数据'" },
+      { name: 'tags', def: "JSON NULL COMMENT '标签'" },
+      { name: 'selected_common_prompts', def: "JSON NULL COMMENT '选中的常用提示词'" },
+      { name: 'selected_reference_images', def: "JSON NULL COMMENT '选中的参考图片'" }
+    ];
+    for (const col of historyRecordsColumns) {
+      try {
+        await pool.execute(`ALTER TABLE history_records ADD COLUMN ${col.name} ${col.def}`);
+      } catch (alterError) {
+        if (alterError.code !== 'ER_DUP_FIELDNAME') {
+          throw alterError;
+        }
+      }
+    }
     
     // 创建参考图表
     await pool.execute(`
@@ -57,6 +99,14 @@ const initDatabase = async () => {
         user_id INT NULL,
         name VARCHAR(200) NOT NULL,
         url VARCHAR(500) NOT NULL,
+        filename VARCHAR(255) NULL COMMENT '文件名',
+        original_name VARCHAR(255) NULL COMMENT '原始文件名',
+        file_path VARCHAR(500) NULL COMMENT '文件路径',
+        file_size INT NULL COMMENT '文件大小(字节)',
+        mime_type VARCHAR(100) NULL COMMENT 'MIME类型',
+        oss_url VARCHAR(500) NULL COMMENT 'OSS URL',
+        oss_thumbnail_url VARCHAR(500) NULL COMMENT 'OSS缩略图URL',
+        is_prompt_reference TINYINT(1) DEFAULT 0 COMMENT '是否为提示词参考图',
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
         FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
@@ -65,6 +115,27 @@ const initDatabase = async () => {
       )
     `);
     
+    // 为现有 reference_images 表添加缺失列
+    const referenceImagesColumns = [
+      { name: 'filename', def: "VARCHAR(255) NULL COMMENT '文件名'" },
+      { name: 'original_name', def: "VARCHAR(255) NULL COMMENT '原始文件名'" },
+      { name: 'file_path', def: "VARCHAR(500) NULL COMMENT '文件路径'" },
+      { name: 'file_size', def: "INT NULL COMMENT '文件大小(字节)'" },
+      { name: 'mime_type', def: "VARCHAR(100) NULL COMMENT 'MIME类型'" },
+      { name: 'oss_url', def: "VARCHAR(500) NULL COMMENT 'OSS URL'" },
+      { name: 'oss_thumbnail_url', def: "VARCHAR(500) NULL COMMENT 'OSS缩略图URL'" },
+      { name: 'is_prompt_reference', def: "TINYINT(1) DEFAULT 0 COMMENT '是否为提示词参考图'" }
+    ];
+    for (const col of referenceImagesColumns) {
+      try {
+        await pool.execute(`ALTER TABLE reference_images ADD COLUMN ${col.name} ${col.def}`);
+      } catch (alterError) {
+        if (alterError.code !== 'ER_DUP_FIELDNAME') {
+          throw alterError;
+        }
+      }
+    }
+    
     // 创建提示词表
     await pool.execute(`
       CREATE TABLE IF NOT EXISTS prompts (
@@ -72,12 +143,64 @@ const initDatabase = async () => {
         user_id INT NOT NULL,
         name VARCHAR(200) NOT NULL,
         content TEXT NOT NULL,
+        tags VARCHAR(100) NULL COMMENT '标签/分类',
+        reference_image_id INT NULL COMMENT '关联参考图片ID',
+        selected_common_prompts JSON NULL COMMENT '选中的常用提示词',
+        selected_reference_images JSON NULL COMMENT '选中的参考图片',
+        generation_mode VARCHAR(50) NULL COMMENT '生成模式',
+        image_size VARCHAR(20) NULL COMMENT '图片尺寸',
+        generate_quantity INT DEFAULT 1 COMMENT '生成数量',
+        model_id INT NULL COMMENT '使用的模型ID',
+        cover_image_url VARCHAR(500) NULL COMMENT '封面图URL',
+        reference_image_url VARCHAR(500) NULL COMMENT '参考图URL',
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
         FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
         INDEX idx_user_id (user_id),
         INDEX idx_created_at (created_at)
       )
+    `);
+    
+    // 为现有 prompts 表添加缺失列
+    const promptsColumns = [
+      { name: 'tags', def: "VARCHAR(100) NULL COMMENT '标签/分类'" },
+      { name: 'reference_image_id', def: "INT NULL COMMENT '关联参考图片ID'" },
+      { name: 'selected_common_prompts', def: "JSON NULL COMMENT '选中的常用提示词'" },
+      { name: 'selected_reference_images', def: "JSON NULL COMMENT '选中的参考图片'" },
+      { name: 'generation_mode', def: "VARCHAR(50) NULL COMMENT '生成模式'" },
+      { name: 'image_size', def: "VARCHAR(20) NULL COMMENT '图片尺寸'" },
+      { name: 'generate_quantity', def: "INT DEFAULT 1 COMMENT '生成数量'" },
+      { name: 'model_id', def: "INT NULL COMMENT '使用的模型ID'" },
+      { name: 'cover_image_url', def: "VARCHAR(500) NULL COMMENT '封面图URL'" },
+      { name: 'reference_image_url', def: "VARCHAR(500) NULL COMMENT '参考图URL'" }
+    ];
+    for (const col of promptsColumns) {
+      try {
+        await pool.execute(`ALTER TABLE prompts ADD COLUMN ${col.name} ${col.def}`);
+      } catch (alterError) {
+        if (alterError.code !== 'ER_DUP_FIELDNAME') {
+          throw alterError;
+        }
+      }
+    }
+
+    // 创建视频模型表
+    await pool.execute(`
+      CREATE TABLE IF NOT EXISTS video_models (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        name VARCHAR(100) NOT NULL COMMENT '模型名称',
+        provider VARCHAR(100) NOT NULL COMMENT '提供商',
+        model_type ENUM('text-to-video', 'image-to-video-first', 'image-to-video-both') NOT NULL COMMENT '模型类型',
+        model_id VARCHAR(100) NOT NULL COMMENT '模型ID',
+        api_url VARCHAR(500) NOT NULL COMMENT 'API地址',
+        api_key VARCHAR(500) NOT NULL COMMENT 'API密钥',
+        icon_url VARCHAR(500) NULL COMMENT '图标URL',
+        is_active TINYINT(1) DEFAULT 1 COMMENT '是否启用',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        INDEX idx_model_type (model_type),
+        INDEX idx_is_active (is_active)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='视频模型配置表'
     `);
 
     // 创建常用提示词表
@@ -170,12 +293,12 @@ const initDatabase = async () => {
     await pool.execute(`
       CREATE TABLE IF NOT EXISTS batch_prompt_history (
         id INT AUTO_INCREMENT PRIMARY KEY,
-        user_id INT NOT NULL COMMENT '用户ID',
+        user_id INT NOT NULL COMMENT '用户 ID',
         name VARCHAR(200) NOT NULL COMMENT '历史记录名称',
-        prompts JSON NOT NULL COMMENT '批量提示词列表(最多10个)',
+        prompts JSON NOT NULL COMMENT '批量提示词列表 (最多 10 个)',
         prompt_count INT NOT NULL COMMENT '提示词数量',
         source_type ENUM('manual', 'ai_generated') DEFAULT 'manual' COMMENT '来源类型',
-        source_id INT NULL COMMENT '如果是AI生成的，关联ai_prompt_history的ID',
+        source_id INT NULL COMMENT '如果是 AI 生成的，关联 ai_prompt_history 的 ID',
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
         FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
@@ -184,6 +307,141 @@ const initDatabase = async () => {
         INDEX idx_created_at (created_at)
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='批量输入表单历史记录表'
     `);
+
+    // 创建公开作品表
+    await pool.execute(`
+      CREATE TABLE IF NOT EXISTS public_works (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        user_id INT NOT NULL COMMENT '用户 ID',
+        history_id INT NULL COMMENT '关联的历史记录 ID',
+        title VARCHAR(200) NULL COMMENT '作品标题',
+        cover_url VARCHAR(500) NOT NULL COMMENT '封面图 URL',
+        content_type ENUM('image', 'video') NOT NULL COMMENT '内容类型',
+        prompt TEXT NOT NULL COMMENT '提示词',
+        model_id INT NULL COMMENT '模型 ID',
+        model_name VARCHAR(100) NULL COMMENT '模型名称',
+        size VARCHAR(20) NULL COMMENT '尺寸/分辨率',
+        reference_images JSON NULL COMMENT '参考图片列表',
+        video_data JSON NULL COMMENT '视频数据',
+        is_published BOOLEAN DEFAULT TRUE COMMENT '是否已发布',
+        views_count INT DEFAULT 0 COMMENT '浏览数',
+        likes_count INT DEFAULT 0 COMMENT '点赞数',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+        INDEX idx_user_id (user_id),
+        INDEX idx_content_type (content_type),
+        INDEX idx_is_published (is_published),
+        INDEX idx_created_at (created_at)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='公开作品表'
+    `);
+
+    // 创建作品点赞表
+    await pool.execute(`
+      CREATE TABLE IF NOT EXISTS work_likes (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        user_id INT NOT NULL COMMENT '用户 ID',
+        work_id INT NOT NULL COMMENT '作品 ID',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE KEY uk_user_work (user_id, work_id),
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+        FOREIGN KEY (work_id) REFERENCES public_works(id) ON DELETE CASCADE,
+        INDEX idx_user_id (user_id),
+        INDEX idx_work_id (work_id)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='作品点赞表'
+    `);
+
+    // 创建用户积分余额表
+    await pool.execute(`
+      CREATE TABLE IF NOT EXISTS user_credits (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        user_id INT NOT NULL UNIQUE COMMENT '用户 ID',
+        balance DECIMAL(10,2) DEFAULT 0 COMMENT '当前余额（弹珠数）',
+        total_recharged DECIMAL(10,2) DEFAULT 0 COMMENT '累计充值金额',
+        total_consumed DECIMAL(10,2) DEFAULT 0 COMMENT '累计消费金额',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+        INDEX idx_user_id (user_id)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='用户积分余额表'
+    `);
+
+    // 创建积分交易记录表
+    await pool.execute(`
+      CREATE TABLE IF NOT EXISTS credit_transactions (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        user_id INT NOT NULL COMMENT '用户 ID',
+        transaction_type ENUM('recharge', 'consume', 'admin_grant') NOT NULL COMMENT '交易类型',
+        amount DECIMAL(10,2) NOT NULL COMMENT '交易金额（正数增加，负数减少）',
+        balance_before DECIMAL(10,2) NOT NULL COMMENT '交易前余额',
+        balance_after DECIMAL(10,2) NOT NULL COMMENT '交易后余额',
+        description VARCHAR(500) NULL COMMENT '交易描述',
+        related_order_id VARCHAR(100) NULL COMMENT '关联订单 ID',
+        related_generation_id INT NULL COMMENT '关联生成记录 ID',
+        admin_user_id INT NULL COMMENT '操作管理员 ID',
+        ip_address VARCHAR(50) NULL COMMENT 'IP 地址',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+        INDEX idx_user_id (user_id),
+        INDEX idx_transaction_type (transaction_type),
+        INDEX idx_created_at (created_at)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='积分交易记录表'
+    `);
+
+    // 创建充值订单表
+    await pool.execute(`
+      CREATE TABLE IF NOT EXISTS recharge_orders (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        order_no VARCHAR(50) NOT NULL UNIQUE COMMENT '订单号',
+        user_id INT NOT NULL COMMENT '用户 ID',
+        amount DECIMAL(10,2) NOT NULL COMMENT '充值金额（美元）',
+        credits DECIMAL(10,2) NOT NULL COMMENT '获得弹珠数',
+        payment_method VARCHAR(50) NULL COMMENT '支付方式',
+        payment_status ENUM('pending', 'paid', 'failed', 'cancelled') DEFAULT 'pending' COMMENT '支付状态',
+        payment_time TIMESTAMP NULL COMMENT '支付时间',
+        payment_channel_order_no VARCHAR(100) NULL COMMENT '支付渠道订单号',
+        payment_data JSON NULL COMMENT '支付回调数据',
+        ip_address VARCHAR(50) NULL COMMENT '用户 IP',
+        user_agent VARCHAR(500) NULL COMMENT '用户代理',
+        expired_at TIMESTAMP NOT NULL COMMENT '过期时间',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+        INDEX idx_order_no (order_no),
+        INDEX idx_user_id (user_id),
+        INDEX idx_payment_status (payment_status)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='充值订单表'
+    `);
+
+    // 创建模型价格配置表
+    await pool.execute(`
+      CREATE TABLE IF NOT EXISTS model_pricing (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        model_key VARCHAR(100) NOT NULL UNIQUE COMMENT '模型标识',
+        model_name VARCHAR(200) NOT NULL COMMENT '模型名称',
+        model_type ENUM('image', 'video') NOT NULL COMMENT '模型类型',
+        pricing_type ENUM('fixed', 'per_second', 'per_resolution') NOT NULL COMMENT '计费类型',
+        base_price DECIMAL(10,2) NULL COMMENT '基础价格（固定价格）',
+        price_per_second DECIMAL(10,2) NULL COMMENT '每秒价格',
+        supported_durations JSON NULL COMMENT '支持的时长列表（秒）',
+        resolution_pricing JSON NULL COMMENT '分辨率价格配置',
+        is_active BOOLEAN DEFAULT TRUE COMMENT '是否启用',
+        description TEXT NULL COMMENT '描述',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        INDEX idx_model_key (model_key),
+        INDEX idx_model_type (model_type),
+        INDEX idx_is_active (is_active)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='模型价格配置表'
+    `);
+
+    // 初始化现有用户的积分账户
+    await pool.execute(`
+      INSERT INTO user_credits (user_id, balance, total_recharged, total_consumed)
+      SELECT id, 0, 0, 0 FROM users
+      ON DUPLICATE KEY UPDATE user_id = user_id
+    `);
+    console.log('现有用户积分账户已初始化');
 
     // 检查是否有默认文本模型，如果没有则插入
     const [existingTextModels] = await pool.execute('SELECT COUNT(*) as count FROM ai_text_models WHERE is_default = TRUE');

@@ -55,25 +55,30 @@
         >
           <el-table-column prop="id" label="ID" width="80" />
           <el-table-column prop="username" label="用户名" width="120" />
-          <el-table-column prop="email" label="邮箱" min-width="200" />
-          <el-table-column label="状态" width="100">
+          <el-table-column prop="email" label="邮箱" min-width="180" />
+          <el-table-column label="状态" width="80">
             <template #default="{ row }">
               <el-tag :type="row.status ? 'success' : 'danger'">
                 {{ row.status ? '启用' : '禁用' }}
               </el-tag>
             </template>
           </el-table-column>
-          <el-table-column label="管理员" width="100">
+          <el-table-column label="管理员" width="80">
             <template #default="{ row }">
               <el-tag :type="row.is_admin ? 'warning' : 'info'">
                 {{ row.is_admin ? '是' : '否' }}
               </el-tag>
             </template>
           </el-table-column>
-          <el-table-column prop="imageCount" label="生成图片" width="100" />
-          <el-table-column prop="promptCount" label="提示词模版" width="120" />
-          <el-table-column prop="created_at" label="注册时间" width="180" />
-          <el-table-column label="操作" width="400" fixed="right">
+          <el-table-column label="弹珠余额" width="100">
+            <template #default="{ row }">
+              <span class="credit-balance">{{ row.creditBalance || 0 }}</span>
+            </template>
+          </el-table-column>
+          <el-table-column prop="imageCount" label="生成图片" width="80" />
+          <el-table-column prop="promptCount" label="提示词" width="80" />
+          <el-table-column prop="created_at" label="注册时间" width="160" />
+          <el-table-column label="操作" width="420" fixed="right">
             <template #default="{ row }">
               <div class="action-buttons">
                 <!-- 第一行：状态管理 -->
@@ -94,6 +99,15 @@
                     class="action-btn"
                   >
                     {{ row.is_admin ? '取消管理员' : '设为管理员' }}
+                  </el-button>
+                  
+                  <el-button
+                    size="small"
+                    type="primary"
+                    @click="openRechargeDialog(row)"
+                    class="action-btn"
+                  >
+                    充值弹珠
                   </el-button>
                 </div>
                 
@@ -134,6 +148,15 @@
                 <div class="action-row">
                   <el-button
                     size="small"
+                    type="info"
+                    @click="viewTransactions(row)"
+                    class="action-btn"
+                  >
+                    交易记录
+                  </el-button>
+                  
+                  <el-button
+                    size="small"
                     type="danger"
                     @click="deleteUser(row)"
                     class="action-btn action-btn-danger"
@@ -160,6 +183,98 @@
         </div>
       </el-card>
     </div>
+    
+    <!-- 充值弹珠对话框 -->
+    <el-dialog
+      v-model="rechargeDialogVisible"
+      title="充值弹珠"
+      width="500px"
+      :close-on-click-modal="false"
+    >
+      <el-form :model="rechargeForm" label-width="100px" :rules="rechargeRules" ref="rechargeFormRef">
+        <el-form-item label="用户名">
+          <el-input :value="rechargeForm.username" disabled />
+        </el-form-item>
+        <el-form-item label="当前余额">
+          <el-input :value="rechargeForm.currentBalance + ' 弹珠'" disabled />
+        </el-form-item>
+        <el-form-item label="充值数量" prop="amount">
+          <el-input-number
+            v-model="rechargeForm.amount"
+            :min="1"
+            :max="100000"
+            :step="100"
+            style="width: 100%"
+          />
+        </el-form-item>
+        <el-form-item label="充值说明">
+          <el-input
+            v-model="rechargeForm.description"
+            type="textarea"
+            :rows="3"
+            placeholder="可选，填写充值原因或备注"
+          />
+        </el-form-item>
+        <el-form-item label="快捷选择">
+          <div class="quick-amounts">
+            <el-button size="small" @click="rechargeForm.amount = 100">+100</el-button>
+            <el-button size="small" @click="rechargeForm.amount = 500">+500</el-button>
+            <el-button size="small" @click="rechargeForm.amount = 1000">+1000</el-button>
+            <el-button size="small" @click="rechargeForm.amount = 5000">+5000</el-button>
+            <el-button size="small" @click="rechargeForm.amount = 10000">+10000</el-button>
+          </div>
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="rechargeDialogVisible = false">取消</el-button>
+        <el-button type="primary" @click="submitRecharge" :loading="rechargeLoading">
+          确认充值
+        </el-button>
+      </template>
+    </el-dialog>
+    
+    <!-- 交易记录对话框 -->
+    <el-dialog
+      v-model="transactionsDialogVisible"
+      :title="`${transactionsUser.username} - 交易记录`"
+      width="800px"
+    >
+      <el-table :data="transactions" v-loading="transactionsLoading" stripe>
+        <el-table-column prop="created_at" label="时间" width="180">
+          <template #default="{ row }">
+            {{ formatDateTime(row.created_at) }}
+          </template>
+        </el-table-column>
+        <el-table-column prop="transaction_type" label="类型" width="100">
+          <template #default="{ row }">
+            <el-tag :type="getTransactionTypeTag(row.transaction_type)">
+              {{ getTransactionTypeName(row.transaction_type) }}
+            </el-tag>
+          </template>
+        </el-table-column>
+        <el-table-column prop="amount" label="金额" width="100">
+          <template #default="{ row }">
+            <span :class="row.amount >= 0 ? 'amount-positive' : 'amount-negative'">
+              {{ row.amount >= 0 ? '+' : '' }}{{ row.amount }}
+            </span>
+          </template>
+        </el-table-column>
+        <el-table-column prop="balance_before" label="变动前" width="100" />
+        <el-table-column prop="balance_after" label="变动后" width="100" />
+        <el-table-column prop="description" label="说明" min-width="200" show-overflow-tooltip />
+      </el-table>
+      <div class="pagination" style="margin-top: 16px;">
+        <el-pagination
+          v-model:current-page="transactionsPagination.page"
+          v-model:page-size="transactionsPagination.pageSize"
+          :total="transactionsPagination.total"
+          :page-sizes="[10, 20, 50]"
+          layout="total, sizes, prev, pager, next"
+          @size-change="fetchTransactions"
+          @current-change="fetchTransactions"
+        />
+      </div>
+    </el-dialog>
   </div>
 </template>
 
@@ -187,6 +302,35 @@ export default {
       total: 0
     })
     
+    // 充值相关
+    const rechargeDialogVisible = ref(false)
+    const rechargeLoading = ref(false)
+    const rechargeFormRef = ref(null)
+    const rechargeForm = reactive({
+      userId: null,
+      username: '',
+      currentBalance: 0,
+      amount: 100,
+      description: ''
+    })
+    const rechargeRules = {
+      amount: [
+        { required: true, message: '请输入充值数量', trigger: 'blur' },
+        { type: 'number', min: 1, message: '充值数量必须大于0', trigger: 'blur' }
+      ]
+    }
+    
+    // 交易记录相关
+    const transactionsDialogVisible = ref(false)
+    const transactionsLoading = ref(false)
+    const transactions = ref([])
+    const transactionsUser = reactive({ id: null, username: '' })
+    const transactionsPagination = reactive({
+      page: 1,
+      pageSize: 10,
+      total: 0
+    })
+    
     const fetchUsers = async () => {
       try {
         loading.value = true
@@ -202,6 +346,18 @@ export default {
         if (response.data.success) {
           users.value = response.data.users
           pagination.total = response.data.total
+          
+          // 获取每个用户的积分余额
+          for (const user of users.value) {
+            try {
+              const creditRes = await api.get(`/users/${user.id}/credits`)
+              if (creditRes.data.success) {
+                user.creditBalance = creditRes.data.data.balance
+              }
+            } catch (e) {
+              user.creditBalance = 0
+            }
+          }
         } else {
           ElMessage.error('获取用户列表失败')
         }
@@ -304,14 +460,12 @@ export default {
     
     // 查看用户提示词
     const viewUserPrompts = (user) => {
-      // 将用户信息存储到sessionStorage，供内容管理页面使用
       sessionStorage.setItem('selectedUserForContent', JSON.stringify({
         id: user.id,
         username: user.username,
         email: user.email
       }))
       
-      // 跳转到内容管理页面，并设置默认标签页为提示词
       router.push({
         path: '/content',
         query: { tab: 'prompts' }
@@ -320,14 +474,12 @@ export default {
     
     // 查看用户参考图
     const viewUserImages = (user) => {
-      // 将用户信息存储到sessionStorage，供内容管理页面使用
       sessionStorage.setItem('selectedUserForContent', JSON.stringify({
         id: user.id,
         username: user.username,
         email: user.email
       }))
       
-      // 跳转到内容管理页面，并设置默认标签页为参考图
       router.push({
         path: '/content',
         query: { tab: 'images' }
@@ -336,18 +488,140 @@ export default {
     
     // 查看用户生成作品
     const viewUserGenerations = (user) => {
-      // 将用户信息存储到sessionStorage，供内容管理页面使用
       sessionStorage.setItem('selectedUserForContent', JSON.stringify({
         id: user.id,
         username: user.username,
         email: user.email
       }))
       
-      // 跳转到内容管理页面，并设置默认标签页为生成作品
       router.push({
         path: '/content',
         query: { tab: 'generations' }
       })
+    }
+    
+    // 打开充值对话框
+    const openRechargeDialog = async (user) => {
+      rechargeForm.userId = user.id
+      rechargeForm.username = user.username
+      rechargeForm.amount = 100
+      rechargeForm.description = ''
+      
+      // 获取当前余额
+      try {
+        const res = await api.get(`/users/${user.id}/credits`)
+        if (res.data.success) {
+          rechargeForm.currentBalance = res.data.data.balance
+        }
+      } catch (e) {
+        rechargeForm.currentBalance = 0
+      }
+      
+      rechargeDialogVisible.value = true
+    }
+    
+    // 提交充值
+    const submitRecharge = async () => {
+      try {
+        await rechargeFormRef.value.validate()
+        
+        await ElMessageBox.confirm(
+          `确定要为用户 "${rechargeForm.username}" 充值 ${rechargeForm.amount} 弹珠吗？`,
+          '确认充值',
+          {
+            confirmButtonText: '确定',
+            cancelButtonText: '取消',
+            type: 'warning'
+          }
+        )
+        
+        rechargeLoading.value = true
+        const response = await api.post(`/users/${rechargeForm.userId}/credits`, {
+          amount: rechargeForm.amount,
+          description: rechargeForm.description
+        })
+        
+        if (response.data.success) {
+          ElMessage.success(response.data.message)
+          rechargeDialogVisible.value = false
+          fetchUsers()
+        } else {
+          ElMessage.error(response.data.error || '充值失败')
+        }
+      } catch (error) {
+        if (error !== 'cancel') {
+          console.error('充值失败:', error)
+          ElMessage.error(error.response?.data?.error || '充值失败')
+        }
+      } finally {
+        rechargeLoading.value = false
+      }
+    }
+    
+    // 查看交易记录
+    const viewTransactions = (user) => {
+      transactionsUser.id = user.id
+      transactionsUser.username = user.username
+      transactionsPagination.page = 1
+      transactionsDialogVisible.value = true
+      fetchTransactions()
+    }
+    
+    // 获取交易记录
+    const fetchTransactions = async () => {
+      try {
+        transactionsLoading.value = true
+        const res = await api.get(`/users/${transactionsUser.id}/transactions`, {
+          params: {
+            page: transactionsPagination.page,
+            pageSize: transactionsPagination.pageSize
+          }
+        })
+        
+        if (res.data.success) {
+          transactions.value = res.data.data.transactions
+          transactionsPagination.total = res.data.data.total
+        }
+      } catch (error) {
+        console.error('获取交易记录失败:', error)
+        ElMessage.error('获取交易记录失败')
+      } finally {
+        transactionsLoading.value = false
+      }
+    }
+    
+    // 格式化日期时间
+    const formatDateTime = (dateStr) => {
+      if (!dateStr) return ''
+      const date = new Date(dateStr)
+      return date.toLocaleString('zh-CN', {
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit'
+      })
+    }
+    
+    // 获取交易类型名称
+    const getTransactionTypeName = (type) => {
+      const names = {
+        'recharge': '充值',
+        'consume': '消费',
+        'admin_grant': '赠送'
+      }
+      return names[type] || type
+    }
+    
+    // 获取交易类型标签颜色
+    const getTransactionTypeTag = (type) => {
+      const tags = {
+        'recharge': 'success',
+        'consume': 'danger',
+        'admin_grant': 'warning'
+      }
+      return tags[type] || 'info'
     }
     
     onMounted(() => {
@@ -369,7 +643,26 @@ export default {
       deleteUser,
       viewUserPrompts,
       viewUserImages,
-      viewUserGenerations
+      viewUserGenerations,
+      // 充值相关
+      rechargeDialogVisible,
+      rechargeLoading,
+      rechargeFormRef,
+      rechargeForm,
+      rechargeRules,
+      openRechargeDialog,
+      submitRecharge,
+      // 交易记录相关
+      transactionsDialogVisible,
+      transactionsLoading,
+      transactions,
+      transactionsUser,
+      transactionsPagination,
+      viewTransactions,
+      fetchTransactions,
+      formatDateTime,
+      getTransactionTypeName,
+      getTransactionTypeTag
     }
   }
 }
@@ -465,6 +758,27 @@ export default {
 
 :deep(.el-button-group .el-button + .el-button) {
   margin-left: -1px;
+}
+
+.credit-balance {
+  font-weight: bold;
+  color: #409eff;
+}
+
+.quick-amounts {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.amount-positive {
+  color: #67c23a;
+  font-weight: bold;
+}
+
+.amount-negative {
+  color: #f56c6c;
+  font-weight: bold;
 }
 </style>
 

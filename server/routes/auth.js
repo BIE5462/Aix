@@ -50,7 +50,7 @@ router.post('/register', async (req, res) => {
 
     // 创建用户
     const [result] = await connection.execute(
-      'INSERT INTO users (username, password, created_at) VALUES (?, ?, NOW())',
+      'INSERT INTO users (username, password, email) VALUES (?, ?, NULL)',
       [username, hashedPassword]
     );
 

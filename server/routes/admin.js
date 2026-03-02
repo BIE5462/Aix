@@ -327,6 +327,82 @@ router.delete('/users/:id', requireAdmin, async (req, res) => {
   }
 });
 
+// 获取用户积分余额
+router.get('/users/:id/credits', requireAdmin, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const balance = await creditService.getUserBalance(id);
+    
+    res.json({
+      success: true,
+      data: balance
+    });
+  } catch (error) {
+    console.error('获取用户积分失败:', error);
+    res.status(500).json({ error: '获取用户积分失败' });
+  }
+});
+
+// 给用户充值弹珠
+router.post('/users/:id/credits', requireAdmin, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { amount, description } = req.body;
+    
+    if (!amount || amount <= 0) {
+      return res.status(400).json({ error: '充值金额必须大于0' });
+    }
+    
+    // 获取管理员IP
+    const ipAddress = req.ip || req.connection.remoteAddress;
+    
+    // 调用积分服务进行充值
+    const result = await creditService.adminGrantCredits(
+      req.user.id,
+      parseInt(id),
+      parseFloat(amount),
+      description || `管理员充值${amount}弹珠`,
+      ipAddress
+    );
+    
+    res.json({
+      success: true,
+      message: `成功为用户充值 ${amount} 弹珠`,
+      data: {
+        balance_before: result.balance_before,
+        balance_after: result.balance_after,
+        amount: result.amount
+      }
+    });
+  } catch (error) {
+    console.error('充值弹珠失败:', error);
+    res.status(500).json({ error: error.message || '充值弹珠失败' });
+  }
+});
+
+// 获取用户积分交易记录
+router.get('/users/:id/transactions', requireAdmin, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { page = 1, pageSize = 20, type } = req.query;
+    
+    const result = await creditService.getUserTransactions(
+      parseInt(id),
+      parseInt(page),
+      parseInt(pageSize),
+      type || null
+    );
+    
+    res.json({
+      success: true,
+      data: result
+    });
+  } catch (error) {
+    console.error('获取交易记录失败:', error);
+    res.status(500).json({ error: '获取交易记录失败' });
+  }
+});
+
 // 获取生成内容列表
 router.get('/generations', requireAdmin, async (req, res) => {
   try {
