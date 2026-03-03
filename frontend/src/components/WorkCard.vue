@@ -125,7 +125,7 @@ const handleUseTemplate = () => {
 
 // 处理图片加载错误
 const handleImageError = (e) => {
-  e.target.src = '/logo.png' // 使用默认图片
+  e.target.src = '/LOGO2.png' // 使用默认图片
 }
 </script>
 

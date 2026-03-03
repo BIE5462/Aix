@@ -222,4 +222,86 @@ router.delete('/history/:id', requireAuth, async (req, res) => {
   }
 });
 
+// 获取优化模板列表
+router.get('/templates', async (req, res) => {
+  try {
+    const promptTemplates = require('../services/promptTemplates');
+    const templates = promptTemplates.getAllTemplatesMeta();
+    const categories = promptTemplates.getCategories();
+    res.json({
+      success: true,
+      data: { templates, categories }
+    });
+  } catch (error) {
+    console.error('获取优化模板失败:', error);
+    res.status(500).json({ error: '获取优化模板失败' });
+  }
+});
+
+// 优化提示词
+router.post('/optimize', requireAuth, async (req, res) => {
+  try {
+    const { model_id, template_id, original_prompt } = req.body;
+
+    if (!model_id || !template_id || !original_prompt?.trim()) {
+      return res.status(400).json({ error: '缺少必要参数: model_id, template_id, original_prompt' });
+    }
+
+    const pool = getConnection();
+    const [models] = await pool.execute(
+      'SELECT * FROM ai_text_models WHERE id = ? AND is_active = TRUE',
+      [model_id]
+    );
+
+    if (models.length === 0) {
+      return res.status(404).json({ error: '模型不存在或未启用' });
+    }
+
+    const modelConfig = models[0];
+    const optimizedPrompt = await aiPromptService.optimizePrompt(modelConfig, template_id, original_prompt.trim());
+
+    res.json({
+      success: true,
+      data: { optimized_prompt: optimizedPrompt }
+    });
+  } catch (error) {
+    console.error('[POST /optimize] 优化失败:', error);
+    res.status(500).json({ error: error.message || '优化提示词失败' });
+  }
+});
+
+// 迭代优化提示词
+router.post('/iterate', requireAuth, async (req, res) => {
+  try {
+    const { model_id, template_id, last_optimized_prompt, iterate_input } = req.body;
+
+    if (!model_id || !template_id || !last_optimized_prompt?.trim() || !iterate_input?.trim()) {
+      return res.status(400).json({ error: '缺少必要参数: model_id, template_id, last_optimized_prompt, iterate_input' });
+    }
+
+    const pool = getConnection();
+    const [models] = await pool.execute(
+      'SELECT * FROM ai_text_models WHERE id = ? AND is_active = TRUE',
+      [model_id]
+    );
+
+    if (models.length === 0) {
+      return res.status(404).json({ error: '模型不存在或未启用' });
+    }
+
+    const modelConfig = models[0];
+    const iteratedPrompt = await aiPromptService.iteratePrompt(
+      modelConfig, template_id, last_optimized_prompt.trim(), iterate_input.trim()
+    );
+
+    res.json({
+      success: true,
+      data: { iterated_prompt: iteratedPrompt }
+    });
+  } catch (error) {
+    console.error('[POST /iterate] 迭代失败:', error);
+    res.status(500).json({ error: error.message || '迭代优化失败' });
+  }
+});
+
 module.exports = router;

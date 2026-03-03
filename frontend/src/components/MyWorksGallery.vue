@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <div class="my-works-gallery">
     <!-- 图片网格 - 无限滚动 -->
     <div 

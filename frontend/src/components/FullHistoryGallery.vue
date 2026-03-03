@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <div class="full-history-gallery">
     <!-- 标签页 -->
     <el-tabs v-model="activeTab" class="history-tabs">

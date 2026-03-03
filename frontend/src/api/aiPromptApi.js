@@ -51,6 +51,32 @@ export const deleteAIPromptHistory = async (id) => {
 }
 
 /**
+ * 获取优化模板列表
+ */
+export const getOptimizeTemplates = async () => {
+  const response = await apiClient.get('/ai-prompts/templates')
+  return response.data
+}
+
+/**
+ * 优化提示词
+ * @param {Object} params - { model_id, template_id, original_prompt }
+ */
+export const optimizePrompt = async (params) => {
+  const response = await apiClient.post('/ai-prompts/optimize', params)
+  return response.data
+}
+
+/**
+ * 迭代优化提示词
+ * @param {Object} params - { model_id, template_id, last_optimized_prompt, iterate_input }
+ */
+export const iteratePrompt = async (params) => {
+  const response = await apiClient.post('/ai-prompts/iterate', params)
+  return response.data
+}
+
+/**
  * 保存批量输入历史
  * @param {Object} params - 保存参数
  * @param {String} params.name - 历史记录名称

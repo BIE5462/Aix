@@ -15,7 +15,7 @@
       <!-- 左侧介绍区域 -->
       <div class="intro-section">
         <div class="logo-container">
-          <img src="/logo.png" alt="千海AI" class="logo" />
+          <img src="/LOGO2.png" alt="千海AI" class="logo" />
           <h1 class="brand-name">千海AI</h1>
           <p class="brand-subtitle">AI设计产品</p>
         </div>

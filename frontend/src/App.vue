@@ -22,6 +22,13 @@
         @need-login="showLoginDialog = true"
       />
 
+      <!-- 提示词优化 -->
+      <PromptOptimizer
+        v-else-if="activePage === 'prompt-optimizer'"
+        @fill-workspace="handleFillFromOptimizer"
+        @fill-batch-prompts="handleFillBatchFromOptimizer"
+      />
+
       <!-- 工作台（原有生成界面） -->
       <div v-else-if="activePage === 'workspace'" class="main-layout">
       <!-- 左侧面板：TAB切换 + 用户账户系统 -->
@@ -30,13 +37,6 @@
         <div class="tab-section">
           <div class="tab-header">
             <el-tabs v-model="activeTab" class="left-tabs">
-              <!-- AI提示词生成 -->
-              <el-tab-pane label="AI提示词" name="ai-prompts">
-                <div class="tab-content">
-                  <AIPromptGenerator @fill-batch-prompts="handleFillBatchPrompts" />
-                </div>
-              </el-tab-pane>
-
               <el-tab-pane label="我的提示词" name="prompts">
                 <div class="tab-content">
                   <!-- 提示词管理按钮 -->
@@ -1310,6 +1310,7 @@ import MultilineTagInput from './components/MultilineTagInput.vue'
 import AdminDashboard from './components/AdminDashboard.vue'
 import AIPromptGenerator from './components/AIPromptGenerator.vue'
 import BatchPromptHistoryPanel from './components/BatchPromptHistoryPanel.vue'
+import PromptOptimizer from './components/PromptOptimizer.vue'
 import { generateImages, getGenerationResult, getAvailableModels } from './api/imageApi'
 import { generateVideo, getVideoResult, getVideoGenerationStatus, getVideoModels } from './api/videoApi'
 
@@ -1585,7 +1586,8 @@ const showBatchPromptHistoryPanel = ref(false) // 批量输入历史面板
 const promptsCurrentPage = ref(1)
 const promptsPageSize = ref(12) // 每页显示12个提示词
 // 从localStorage恢复左侧标签页，如果没有则使用默认值
-const activeTab = ref(localStorage.getItem('activeTab') || 'prompts')
+const savedTab = localStorage.getItem('activeTab')
+const activeTab = ref(savedTab === 'ai-prompts' ? 'prompts' : (savedTab || 'prompts'))
 const uploadRef = ref()
 const historyPanelRef = ref()
 const uploadedFiles = ref([]) // 保存上传的文件引用数组
@@ -7135,6 +7137,28 @@ const handleRechargeSuccess = () => {
 // 页面导航处理
 const handleNavigate = (page) => {
   activePage.value = page
+}
+
+// 从提示词优化页面填入工作区主提示词输入框
+const handleFillFromOptimizer = (prompts) => {
+  activePage.value = 'workspace'
+  nextTick(() => {
+    const text = prompts.join('\n')
+    if (multilineTagInputRef.value) {
+      multilineTagInputRef.value.setFullText(text)
+    } else {
+      prompt.value = text
+    }
+    ElMessage.success('已填入工作区提示词输入框')
+  })
+}
+
+// 从提示词优化页面的批量生成功能填入工作区
+const handleFillBatchFromOptimizer = (prompts) => {
+  activePage.value = 'workspace'
+  nextTick(() => {
+    handleFillBatchPrompts(prompts)
+  })
 }
 
 // 处理使用模板

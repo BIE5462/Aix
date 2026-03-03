@@ -146,6 +146,102 @@ class AIPromptService {
   }
 
   /**
+   * 调用LLM获取纯文本结果（用于优化和迭代）
+   */
+  async _callLLMText(modelConfig, messages) {
+    const response = await axios.post(
+      modelConfig.api_url,
+      {
+        model: modelConfig.model_name,
+        messages,
+        temperature: 0.7
+      },
+      {
+        headers: {
+          'Authorization': `Bearer ${modelConfig.api_key}`,
+          'Content-Type': 'application/json'
+        },
+        timeout: 60000
+      }
+    );
+
+    let content;
+    if (response.data.choices && response.data.choices[0]) {
+      content = response.data.choices[0].message.content;
+    } else if (response.data.content && Array.isArray(response.data.content)) {
+      content = response.data.content[0].text;
+    } else if (response.data.message) {
+      content = response.data.message;
+    } else {
+      throw new Error('无法识别的API响应格式');
+    }
+
+    return content.trim();
+  }
+
+  /**
+   * 优化提示词
+   * @param {Object} modelConfig - 模型配置
+   * @param {String} templateId - 模板ID
+   * @param {String} originalPrompt - 原始提示词
+   * @returns {String} 优化后的提示词
+   */
+  async optimizePrompt(modelConfig, templateId, originalPrompt) {
+    const promptTemplates = require('./promptTemplates');
+    const template = promptTemplates.getTemplate(templateId);
+    if (!template) {
+      throw new Error(`模板不存在: ${templateId}`);
+    }
+
+    const userMessage = template.userPromptTemplate.replace('{{originalPrompt}}', originalPrompt);
+    const messages = [
+      { role: 'system', content: template.systemPrompt },
+      { role: 'user', content: userMessage }
+    ];
+
+    console.log('[AI提示词服务] 优化提示词:', { templateId, originalPrompt: originalPrompt.substring(0, 50) });
+    const result = await this._callLLMText(modelConfig, messages);
+    console.log('[AI提示词服务] 优化完成:', { resultLength: result.length });
+    return result;
+  }
+
+  /**
+   * 迭代优化提示词
+   * @param {Object} modelConfig - 模型配置
+   * @param {String} templateId - 优化模板ID（会自动查找关联的迭代模板）
+   * @param {String} lastOptimizedPrompt - 上次优化结果
+   * @param {String} iterateInput - 迭代需求
+   * @returns {String} 迭代后的提示词
+   */
+  async iteratePrompt(modelConfig, templateId, lastOptimizedPrompt, iterateInput) {
+    const promptTemplates = require('./promptTemplates');
+    let template = promptTemplates.getTemplate(templateId);
+    if (!template) {
+      throw new Error(`模板不存在: ${templateId}`);
+    }
+
+    if (!template.isIterate && template.iterateTemplateId) {
+      template = promptTemplates.getTemplate(template.iterateTemplateId);
+      if (!template) {
+        throw new Error(`关联的迭代模板不存在: ${templateId}`);
+      }
+    }
+
+    const userMessage = template.userPromptTemplate
+      .replace('{{lastOptimizedPrompt}}', lastOptimizedPrompt)
+      .replace('{{iterateInput}}', iterateInput);
+    const messages = [
+      { role: 'system', content: template.systemPrompt },
+      { role: 'user', content: userMessage }
+    ];
+
+    console.log('[AI提示词服务] 迭代提示词:', { templateId, iterateInput: iterateInput.substring(0, 50) });
+    const result = await this._callLLMText(modelConfig, messages);
+    console.log('[AI提示词服务] 迭代完成:', { resultLength: result.length });
+    return result;
+  }
+
+  /**
    * 验证模型配置
    * @param {Object} modelConfig - 模型配置
    * @returns {Boolean} 是否有效

@@ -26,6 +26,26 @@
         <el-icon class="nav-icon"><Brush /></el-icon>
         <span class="nav-label">我的工作区</span>
       </div>
+
+      <div 
+        v-if="isLoggedIn"
+        class="nav-item"
+        :class="{ 'active': activePage === 'prompt-optimizer' }"
+        @click="$emit('navigate', 'prompt-optimizer')"
+      >
+        <el-icon class="nav-icon"><MagicStick /></el-icon>
+        <span class="nav-label">提示词优化</span>
+      </div>
+
+      <div 
+        v-if="isLoggedIn"
+        class="nav-item"
+        :class="{ 'active': activePage === 'my-works' }"
+        @click="$emit('navigate', 'my-works')"
+      >
+        <el-icon class="nav-icon"><Picture /></el-icon>
+        <span class="nav-label">我的作品</span>
+      </div>
       
     </nav>
     
@@ -94,7 +114,7 @@
 
 <script setup>
 import { ref, onMounted, onUnmounted, watch } from 'vue'
-import { HomeFilled, Brush, User, SwitchButton, Setting, Coin } from '@element-plus/icons-vue'
+import { HomeFilled, Brush, MagicStick, Picture, User, SwitchButton, Setting, Coin } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import axios from 'axios'
 
