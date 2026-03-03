@@ -582,14 +582,12 @@ app.delete('/api/history/:id', authenticateToken, async (req, res) => {
 // 清空历史记录 - 需要认证
 app.delete('/api/history', authenticateToken, async (req, res) => {
   try {
-    // 删除当前用户的所有历史记录
-    const connection = await getConnection();
-    const [result] = await connection.execute(
-      'DELETE FROM history_records WHERE user_id = ?',
-      [req.user.id]
-    );
-    
-    res.json({ message: `已清空${result.affectedRows}条历史记录` });
+    const result = await userDataService.history.clearHistory(req.user.id);
+    res.json({
+      success: true,
+      message: `已清空${result.deletedCount}条历史记录`,
+      deletedOss: result.deletedOss
+    });
   } catch (error) {
     console.error('清空历史记录错误:', error);
     res.status(500).json({ error: '服务器内部错误' });

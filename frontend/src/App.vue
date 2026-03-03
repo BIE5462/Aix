@@ -29,6 +29,15 @@
         @fill-batch-prompts="handleFillBatchFromOptimizer"
       />
 
+      <!-- 我的作品 -->
+      <MyWorksPage
+        v-else-if="activePage === 'my-works'"
+        :available-models="availableModels"
+        :video-models="videoModels"
+        @use-template="handleUseTemplate"
+        @need-login="showLoginDialog = true"
+      />
+
       <!-- 工作台（原有生成界面） -->
       <div v-else-if="activePage === 'workspace'" class="main-layout">
       <!-- 左侧面板：TAB切换 + 用户账户系统 -->
@@ -1311,6 +1320,7 @@ import AdminDashboard from './components/AdminDashboard.vue'
 import AIPromptGenerator from './components/AIPromptGenerator.vue'
 import BatchPromptHistoryPanel from './components/BatchPromptHistoryPanel.vue'
 import PromptOptimizer from './components/PromptOptimizer.vue'
+import MyWorksPage from './components/MyWorksPage.vue'
 import { generateImages, getGenerationResult, getAvailableModels } from './api/imageApi'
 import { generateVideo, getVideoResult, getVideoGenerationStatus, getVideoModels } from './api/videoApi'
 

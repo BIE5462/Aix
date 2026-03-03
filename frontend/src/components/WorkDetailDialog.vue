@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <el-dialog
     v-model="dialogVisible"
     :title="work?.title || '作品详情'"
@@ -120,6 +120,15 @@
             <el-icon><Top /></el-icon>
             重新上架
           </el-button>
+
+          <el-button
+            type="danger"
+            size="large"
+            @click="handleDeletePermanently"
+            class="publish-button"
+          >
+            永久删除
+          </el-button>
         </div>
       </div>
     </div>
@@ -134,7 +143,7 @@
 import { ref, computed, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { View, Star, StarFilled, DocumentCopy, Top, Bottom } from '@element-plus/icons-vue'
-import { likeWork, unlikeWork, unpublishWork, republishWork } from '../api/worksApi'
+import { likeWork, unlikeWork, unpublishWork, republishWork, deleteWorkPermanently } from '../api/worksApi'
 
 const props = defineProps({
   modelValue: {
@@ -147,7 +156,7 @@ const props = defineProps({
   }
 })
 
-const emit = defineEmits(['update:modelValue', 'like', 'publish-change', 'refresh'])
+const emit = defineEmits(['update:modelValue', 'like', 'publish-change', 'refresh', 'deleted'])
 
 // 弹窗可见性
 const dialogVisible = computed({
@@ -260,6 +269,37 @@ const handleRepublish = async () => {
   } catch (error) {
     console.error('上架失败:', error)
     ElMessage.error('上架失败')
+  }
+}
+
+// 永久删除作品
+const handleDeletePermanently = async () => {
+  if (!props.work?.id) return
+
+  try {
+    await ElMessageBox.confirm(
+      '删除后将同步清理云端文件，且不可恢复，确认继续？',
+      '确认永久删除',
+      {
+        confirmButtonText: '永久删除',
+        cancelButtonText: '取消',
+        type: 'warning'
+      }
+    )
+
+    const response = await deleteWorkPermanently(props.work.id)
+    if (response.data.success) {
+      ElMessage.success(response.data.message || '作品已永久删除')
+      emit('deleted', props.work.id)
+      handleClose()
+    } else {
+      ElMessage.error(response.data.message || response.data.error || '删除失败')
+    }
+  } catch (error) {
+    if (error !== 'cancel') {
+      console.error('永久删除失败:', error)
+      ElMessage.error(error.response?.data?.error || error.response?.data?.message || '永久删除失败')
+    }
   }
 }
 

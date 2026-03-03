@@ -431,20 +431,21 @@ router.get('/history', authenticateToken, async (req, res) => {
   try {
     const { page = 1, pageSize = 20, searchKeyword = '' } = req.query;
     
-    const history = await userDataService.history.getUserHistory(
+    const result = await userDataService.history.getUserHistory(
       req.user.id, 
-      parseInt(page), 
-      parseInt(pageSize), 
-      searchKeyword
+      parseInt(page) || 1, 
+      parseInt(pageSize) || 20, 
+      searchKeyword || '',
+      'video-generation'  // 仅查询视频生成记录
     );
     
-    // 过滤出视频生成记录
-    const videoHistory = history.filter(record => record.mode === 'video-generation');
+    const data = Array.isArray(result.data) ? result.data : [];
     
     res.json({
       success: true,
-      data: videoHistory,
-      total: videoHistory.length
+      data,
+      total: result.total ?? data.length,
+      pagination: result.pagination
     });
   } catch (error) {
     console.error('获取视频生成历史失败:', error);

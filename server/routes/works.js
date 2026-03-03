@@ -130,6 +130,32 @@ router.delete('/:id', authenticateToken, async (req, res) => {
 });
 
 /**
+ * 永久删除作品（需要认证）
+ * DELETE /api/works/:id/permanent
+ */
+router.delete('/:id/permanent', authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user.userId || req.user.id;
+    const { id } = req.params;
+
+    const result = await worksService.deleteWorkPermanently(userId, id);
+
+    if (!result.success) {
+      const statusCode = result.message === '作品不存在' ? 404 : 403;
+      return res.status(statusCode).json(result);
+    }
+
+    res.json(result);
+  } catch (error) {
+    console.error('[DELETE /api/works/:id/permanent] 永久删除失败:', error);
+    res.status(500).json({
+      success: false,
+      error: '永久删除失败'
+    });
+  }
+});
+
+/**
  * 增加浏览数（无需认证）
  * POST /api/works/:id/view
  */

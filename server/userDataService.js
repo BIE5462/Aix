@@ -1,5 +1,7 @@
 const mysql = require('mysql2/promise');
 const config = require('./config');
+const ossManager = require('./utils/ossManager');
+const videoOSSService = require('./services/videoOSSService');
 
 // 创建数据库连接池
 const pool = mysql.createPool({
@@ -15,6 +17,100 @@ const pool = mysql.createPool({
   acquireTimeout: 60000,
   idleTimeout: 300000
 });
+
+const safeParseJson = (value, fallback) => {
+  if (!value) return fallback;
+  if (typeof value === 'object') return value;
+  if (typeof value !== 'string') return fallback;
+  try {
+    return JSON.parse(value);
+  } catch (error) {
+    return fallback;
+  }
+};
+
+const collectImageUrlsFromGenerated = (generatedImages) => {
+  const urls = [];
+  const list = safeParseJson(generatedImages, []);
+  if (!Array.isArray(list)) return urls;
+
+  for (const item of list) {
+    if (typeof item === 'string') {
+      urls.push(item);
+    } else if (item && typeof item === 'object' && typeof item.url === 'string') {
+      urls.push(item.url);
+    }
+  }
+
+  return urls;
+};
+
+const collectVideoUrlsAndKeys = (videoData) => {
+  const parsed = safeParseJson(videoData, null);
+  const urlKeys = new Set(['video_url', 'videoUrl', 'url', 'playUrl', 'downloadUrl']);
+  const keyKeys = new Set(['ossKey', 'key', 'videoKey', 'video_key']);
+  const urls = new Set();
+  const keys = new Set();
+
+  const walk = (node) => {
+    if (!node) return;
+
+    if (Array.isArray(node)) {
+      node.forEach(walk);
+      return;
+    }
+
+    if (typeof node === 'string') {
+      if (node.startsWith('http://') || node.startsWith('https://')) {
+        urls.add(node);
+      }
+      return;
+    }
+
+    if (typeof node !== 'object') return;
+
+    for (const [k, v] of Object.entries(node)) {
+      if (typeof v === 'string' && keyKeys.has(k) && v.trim()) {
+        keys.add(v.trim());
+      }
+      if (typeof v === 'string' && urlKeys.has(k)) {
+        urls.add(v);
+      }
+      if (typeof v === 'object') {
+        walk(v);
+      }
+    }
+  };
+
+  walk(parsed);
+  return { urls: Array.from(urls), keys: Array.from(keys) };
+};
+
+const collectHistoryOssKeys = (record) => {
+  const imageKeySet = new Set();
+  const videoKeySet = new Set();
+
+  const generatedUrls = collectImageUrlsFromGenerated(record.generated_images);
+  for (const url of generatedUrls) {
+    const key = ossManager.extractOssKey(url);
+    if (key) imageKeySet.add(key);
+  }
+
+  const { urls: videoUrls, keys: videoKeys } = collectVideoUrlsAndKeys(record.video_data);
+  for (const url of videoUrls) {
+    const key = ossManager.extractOssKey(url);
+    if (key) videoKeySet.add(key);
+  }
+  for (const key of videoKeys) {
+    const normalized = ossManager.extractOssKey(key);
+    if (normalized) videoKeySet.add(normalized);
+  }
+
+  return {
+    imageKeys: Array.from(imageKeySet),
+    videoKeys: Array.from(videoKeySet)
+  };
+};
 
 // 用户数据服务
 const userDataService = {
@@ -557,6 +653,39 @@ const userDataService = {
     // 删除历史记录
     async deleteHistory(userId, recordId) {
       try {
+        const [records] = await pool.execute(
+          'SELECT generated_images, video_data FROM history_records WHERE id = ? AND user_id = ?',
+          [recordId, userId]
+        );
+
+        if (records.length === 0) {
+          throw new Error('历史记录不存在或无权限删除');
+        }
+
+        const { imageKeys, videoKeys } = collectHistoryOssKeys(records[0]);
+
+        if (imageKeys.length > 0) {
+          await Promise.all(
+            imageKeys.map(async (key) => {
+              const ok = await ossManager.deleteImage(key);
+              if (!ok) {
+                console.warn('删除历史图片OSS对象失败:', key);
+              }
+            })
+          );
+        }
+
+        if (videoKeys.length > 0) {
+          await Promise.all(
+            videoKeys.map(async (key) => {
+              const ok = await videoOSSService.deleteVideo(key);
+              if (!ok) {
+                console.warn('删除历史视频OSS对象失败:', key);
+              }
+            })
+          );
+        }
+
         const [result] = await pool.execute(
           'DELETE FROM history_records WHERE id = ? AND user_id = ?',
           [recordId, userId]
@@ -566,9 +695,67 @@ const userDataService = {
           throw new Error('历史记录不存在或无权限删除');
         }
         
-        return { success: true };
+        return { success: true, deletedOss: { imageCount: imageKeys.length, videoCount: videoKeys.length } };
       } catch (error) {
         console.error('删除历史记录失败:', error);
+        throw error;
+      }
+    },
+
+    // 清空历史记录（同时删除OSS对象）
+    async clearHistory(userId) {
+      try {
+        const [records] = await pool.execute(
+          'SELECT generated_images, video_data FROM history_records WHERE user_id = ?',
+          [userId]
+        );
+
+        const imageKeySet = new Set();
+        const videoKeySet = new Set();
+
+        for (const record of records) {
+          const { imageKeys, videoKeys } = collectHistoryOssKeys(record);
+          imageKeys.forEach((key) => imageKeySet.add(key));
+          videoKeys.forEach((key) => videoKeySet.add(key));
+        }
+
+        if (imageKeySet.size > 0) {
+          await Promise.all(
+            Array.from(imageKeySet).map(async (key) => {
+              const ok = await ossManager.deleteImage(key);
+              if (!ok) {
+                console.warn('清空历史时删除图片OSS对象失败:', key);
+              }
+            })
+          );
+        }
+
+        if (videoKeySet.size > 0) {
+          await Promise.all(
+            Array.from(videoKeySet).map(async (key) => {
+              const ok = await videoOSSService.deleteVideo(key);
+              if (!ok) {
+                console.warn('清空历史时删除视频OSS对象失败:', key);
+              }
+            })
+          );
+        }
+
+        const [result] = await pool.execute(
+          'DELETE FROM history_records WHERE user_id = ?',
+          [userId]
+        );
+
+        return {
+          success: true,
+          deletedCount: result.affectedRows,
+          deletedOss: {
+            imageCount: imageKeySet.size,
+            videoCount: videoKeySet.size
+          }
+        };
+      } catch (error) {
+        console.error('清空历史记录失败:', error);
         throw error;
       }
     }

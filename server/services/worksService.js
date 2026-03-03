@@ -1,6 +1,8 @@
 const mysql = require('mysql2/promise');
 const config = require('../config');
 const imageCacheService = require('./imageCacheService');
+const ossManager = require('../utils/ossManager');
+const videoOSSService = require('./videoOSSService');
 
 // 创建数据库连接池
 const pool = mysql.createPool({
@@ -19,6 +21,87 @@ const pool = mysql.createPool({
   maxIdle: 10,
   timezone: '+00:00'
 });
+
+const safeParseJson = (value, fallback) => {
+  if (!value) return fallback;
+  if (typeof value === 'object') return value;
+  if (typeof value !== 'string') return fallback;
+  try {
+    return JSON.parse(value);
+  } catch (error) {
+    return fallback;
+  }
+};
+
+const collectVideoUrlsAndKeys = (videoData) => {
+  const parsed = safeParseJson(videoData, null);
+  const urlKeys = new Set(['video_url', 'videoUrl', 'url', 'playUrl', 'downloadUrl']);
+  const keyKeys = new Set(['ossKey', 'key', 'videoKey', 'video_key']);
+  const urls = new Set();
+  const keys = new Set();
+
+  const walk = (node) => {
+    if (!node) return;
+
+    if (Array.isArray(node)) {
+      node.forEach(walk);
+      return;
+    }
+
+    if (typeof node === 'string') {
+      if (node.startsWith('http://') || node.startsWith('https://')) {
+        urls.add(node);
+      }
+      return;
+    }
+
+    if (typeof node !== 'object') return;
+
+    for (const [k, v] of Object.entries(node)) {
+      if (typeof v === 'string' && keyKeys.has(k) && v.trim()) {
+        keys.add(v.trim());
+      }
+      if (typeof v === 'string' && urlKeys.has(k)) {
+        urls.add(v);
+      }
+      if (typeof v === 'object') {
+        walk(v);
+      }
+    }
+  };
+
+  walk(parsed);
+  return { urls: Array.from(urls), keys: Array.from(keys) };
+};
+
+const collectWorkOssKeys = (work) => {
+  const imageKeys = new Set();
+  const videoKeys = new Set();
+
+  const coverKey = ossManager.extractOssKey(work.cover_url);
+  if (coverKey) {
+    if (work.content_type === 'video') {
+      videoKeys.add(coverKey);
+    } else {
+      imageKeys.add(coverKey);
+    }
+  }
+
+  const { urls, keys } = collectVideoUrlsAndKeys(work.video_data);
+  for (const url of urls) {
+    const key = ossManager.extractOssKey(url);
+    if (key) videoKeys.add(key);
+  }
+  for (const key of keys) {
+    const normalized = ossManager.extractOssKey(key);
+    if (normalized) videoKeys.add(normalized);
+  }
+
+  return {
+    imageKeys: Array.from(imageKeys),
+    videoKeys: Array.from(videoKeys)
+  };
+};
 
 // 公共作品服务
 const worksService = {
@@ -348,8 +431,11 @@ const worksService = {
   async getUserWorks(userId, pagination = {}) {
     try {
       const { page = 1, pageSize = 20 } = pagination;
-      const offset = (page - 1) * pageSize;
+      const validPage = Math.max(1, Number(page) || 1);
+      const validPageSize = Math.min(100, Math.max(1, Number(pageSize) || 20));
+      const offset = (validPage - 1) * validPageSize;
 
+      // 使用字符串拼接 LIMIT/OFFSET，避免 mysql2 对 prepared statement 的 ER_WRONG_ARGUMENTS 问题
       const [works] = await pool.execute(
         `SELECT 
           id,
@@ -365,8 +451,8 @@ const worksService = {
         FROM public_works
         WHERE user_id = ?
         ORDER BY created_at DESC
-        LIMIT ? OFFSET ?`,
-        [userId, parseInt(pageSize), parseInt(offset)]
+        LIMIT ${validPageSize} OFFSET ${offset}`,
+        [userId]
       );
 
       const [countResult] = await pool.execute(
@@ -378,8 +464,8 @@ const worksService = {
         success: true,
         data: works,
         pagination: {
-          page: parseInt(page),
-          pageSize: parseInt(pageSize),
+          page: validPage,
+          pageSize: validPageSize,
           total: countResult[0].total
         }
       };
@@ -438,6 +524,78 @@ const worksService = {
       };
     } catch (error) {
       console.error('[worksService.republishWork] 重新上架失败:', error);
+      throw error;
+    }
+  },
+
+  /**
+   * 永久删除作品（删除数据库和OSS对象）
+   * @param {number} userId - 用户ID
+   * @param {number} workId - 作品ID
+   */
+  async deleteWorkPermanently(userId, workId) {
+    try {
+      const [works] = await pool.execute(
+        'SELECT id, user_id, cover_url, content_type, video_data FROM public_works WHERE id = ?',
+        [workId]
+      );
+
+      if (works.length === 0) {
+        return {
+          success: false,
+          message: '作品不存在'
+        };
+      }
+
+      const work = works[0];
+      if (work.user_id !== userId) {
+        return {
+          success: false,
+          message: '无权操作此作品'
+        };
+      }
+
+      const { imageKeys, videoKeys } = collectWorkOssKeys(work);
+
+      if (imageKeys.length > 0) {
+        await Promise.all(
+          imageKeys.map(async (key) => {
+            const ok = await ossManager.deleteImage(key);
+            if (!ok) {
+              console.warn('永久删除作品时删除图片OSS对象失败:', key);
+            }
+          })
+        );
+      }
+
+      if (videoKeys.length > 0) {
+        await Promise.all(
+          videoKeys.map(async (key) => {
+            const ok = await videoOSSService.deleteVideo(key);
+            if (!ok) {
+              console.warn('永久删除作品时删除视频OSS对象失败:', key);
+            }
+          })
+        );
+      }
+
+      await pool.execute(
+        'DELETE FROM public_works WHERE id = ? AND user_id = ?',
+        [workId, userId]
+      );
+
+      await imageCacheService.clearPublicWorksCache();
+
+      return {
+        success: true,
+        message: '作品已永久删除',
+        deletedOss: {
+          imageCount: imageKeys.length,
+          videoCount: videoKeys.length
+        }
+      };
+    } catch (error) {
+      console.error('[worksService.deleteWorkPermanently] 永久删除作品失败:', error);
       throw error;
     }
   },

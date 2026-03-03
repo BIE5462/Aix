@@ -44,8 +44,8 @@
         
         <!-- 失败占位 -->
         <div v-else class="preview-placeholder">
-          <img src="/erre.png" alt="生成失败" />
-          <p>生成失败</p>
+          <el-icon class="placeholder-icon"><Warning /></el-icon>
+          <p>生成失败或无内容</p>
         </div>
       </div>
       
@@ -130,6 +130,15 @@
           >
             使用此配置
           </el-button>
+
+          <el-button
+            type="danger"
+            size="large"
+            @click="handleDelete"
+            :icon="Delete"
+          >
+            删除历史
+          </el-button>
         </div>
       </div>
     </div>
@@ -142,8 +151,9 @@
 
 <script setup>
 import { ref, computed, watch, inject } from 'vue'
-import { ElMessage } from 'element-plus'
-import { DocumentCopy, Upload, FolderAdd, Edit } from '@element-plus/icons-vue'
+import { ElMessage, ElMessageBox } from 'element-plus'
+import { DocumentCopy, Upload, FolderAdd, Edit, Delete, Warning } from '@element-plus/icons-vue'
+import { deleteHistory } from '../api/imageApi'
 
 const props = defineProps({
   modelValue: {
@@ -156,7 +166,7 @@ const props = defineProps({
   }
 })
 
-const emit = defineEmits(['update:modelValue', 'use-history', 'publish', 'save'])
+const emit = defineEmits(['update:modelValue', 'use-history', 'publish', 'save', 'deleted'])
 
 // 弹窗可见性
 const dialogVisible = computed({
@@ -305,6 +315,33 @@ const handleSave = () => {
   emit('save', props.historyItem)
 }
 
+// 删除历史
+const handleDelete = async () => {
+  if (!props.historyItem?.id) return
+
+  try {
+    await ElMessageBox.confirm(
+      '删除后将同步清理关联云端文件，且不可恢复，确认继续？',
+      '确认删除',
+      {
+        confirmButtonText: '删除',
+        cancelButtonText: '取消',
+        type: 'warning'
+      }
+    )
+
+    await deleteHistory(props.historyItem.id)
+    ElMessage.success('历史记录已删除')
+    emit('deleted', props.historyItem.id)
+    handleClose()
+  } catch (error) {
+    if (error !== 'cancel') {
+      console.error('删除历史失败:', error)
+      ElMessage.error(error.message || '删除失败')
+    }
+  }
+}
+
 // 关闭弹窗
 const handleClose = () => {
   dialogVisible.value = false
@@ -443,9 +480,9 @@ const handleClose = () => {
   max-height: calc(75vh - 100px);
 }
 
-.preview-placeholder img {
-  max-width: 150px;
-  opacity: 0.5;
+.preview-placeholder .placeholder-icon {
+  font-size: 64px;
+  color: #d1d5db;
   margin-bottom: 12px;
 }
 

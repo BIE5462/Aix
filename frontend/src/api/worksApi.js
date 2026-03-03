@@ -52,6 +52,15 @@ export const unpublishWork = (workId) => {
 }
 
 /**
+ * 永久删除作品
+ * @param {number} workId - 作品ID
+ * @returns {Promise}
+ */
+export const deleteWorkPermanently = (workId) => {
+  return apiClient.delete(`/works/${workId}/permanent`)
+}
+
+/**
  * 增加作品浏览数
  * @param {number} workId - 作品ID
  * @returns {Promise}

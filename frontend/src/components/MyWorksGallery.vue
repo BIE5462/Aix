@@ -127,6 +127,7 @@
       :work="selectedWork"
       @like="handleLikeFromDialog"
       @publish-change="handlePublishChange"
+      @deleted="handleWorkDeleted"
       @refresh="loadWorks"
     />
   </div>
@@ -328,6 +329,14 @@ const handlePublishChange = (workId, isPublished) => {
   const work = worksList.value.find(w => w.id === workId)
   if (work) {
     work.is_published = isPublished
+  }
+}
+
+const handleWorkDeleted = (workId) => {
+  worksList.value = worksList.value.filter(w => Number(w.id) !== Number(workId))
+  if (selectedWork.value && Number(selectedWork.value.id) === Number(workId)) {
+    selectedWork.value = null
+    showDetailDialog.value = false
   }
 }
 

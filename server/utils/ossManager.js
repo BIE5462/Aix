@@ -85,6 +85,52 @@ class OSSManager {
   }
 
   /**
+   * 判断是否为当前项目的OSS链接
+   * @param {string} url - 完整URL
+   * @returns {boolean}
+   */
+  isOwnOssUrl(url) {
+    if (!url || typeof url !== 'string') return false;
+    if (url.startsWith('data:') || url.startsWith('blob:')) return false;
+
+    try {
+      const parsed = new URL(url);
+      const host = parsed.host || '';
+      const bucketHost = `${config.oss.bucket}.${config.oss.region}.aliyuncs.com`;
+      return host.includes(bucketHost);
+    } catch (error) {
+      return false;
+    }
+  }
+
+  /**
+   * 从OSS URL提取key；如果入参本身就是key则原样返回
+   * @param {string} urlOrKey - URL或key
+   * @returns {string|null}
+   */
+  extractOssKey(urlOrKey) {
+    if (!urlOrKey || typeof urlOrKey !== 'string') return null;
+
+    const value = urlOrKey.trim();
+    if (!value) return null;
+
+    // 非 URL，按 key 处理
+    if (!value.startsWith('http://') && !value.startsWith('https://')) {
+      return value;
+    }
+
+    if (!this.isOwnOssUrl(value)) return null;
+
+    try {
+      const parsed = new URL(value);
+      const key = (parsed.pathname || '').replace(/^\/+/, '');
+      return key || null;
+    } catch (error) {
+      return null;
+    }
+  }
+
+  /**
    * 生成预签名URL（用于前端直传）
    * @param {string} fileName - 文件名
    * @param {string} userId - 用户ID
