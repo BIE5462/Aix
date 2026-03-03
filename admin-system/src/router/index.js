@@ -7,6 +7,7 @@ import ContentManagement from '../views/ContentManagement.vue'
 import ModelManagement from '../views/ModelManagement.vue'
 import VideoModelManagement from '../views/VideoModelManagement.vue'
 import TextModelManagement from '../views/TextModelManagement.vue'
+import ModelPricingManagement from '../views/ModelPricingManagement.vue'
 import { useAuthStore } from '../utils/auth.js'
 
 const routes = [
@@ -40,6 +41,11 @@ const routes = [
         path: '/models',
         name: 'ModelManagement',
         component: ModelManagement
+      },
+      {
+        path: '/model-pricing',
+        name: 'ModelPricingManagement',
+        component: ModelPricingManagement
       },
       {
         path: '/video-models',

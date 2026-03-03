@@ -530,7 +530,7 @@ router.get('/models', requireAdmin, async (req, res) => {
       const imageModels = await aiModelService.getAllModels();
       models = models.concat(imageModels.map(model => ({
         ...model,
-        model_type: 'image'
+        model_type: model.model_type || 'image'
       })));
     }
     
@@ -563,7 +563,7 @@ router.get('/models', requireAdmin, async (req, res) => {
 // 添加模型
 router.post('/models', requireAdmin, async (req, res) => {
   try {
-    const { name, provider = 'google', api_key, base_url, description, is_active, is_default, model_type = 'image' } = req.body;
+    const { name, provider, api_key, base_url, description, is_active, is_default, model_type = 'image' } = req.body;
     
     if (!name || !api_key || !base_url) {
       return res.status(400).json({ error: '模型名称、API密钥和API地址不能为空' });
@@ -573,18 +573,15 @@ router.post('/models', requireAdmin, async (req, res) => {
       return res.status(400).json({ error: '模型类型必须是image' });
     }
     
-    if (!['google', 'doubao'].includes(provider)) {
-      return res.status(400).json({ error: '厂商必须是google或doubao' });
-    }
-    
     const modelData = {
       name,
-      provider,
+      provider: provider || 'default',
       api_key,
       base_url,
       description: description || '',
       is_active: is_active !== false,
-      is_default: is_default === true
+      is_default: is_default === true,
+      model_type
     };
     
     let modelId;
@@ -605,7 +602,7 @@ router.post('/models', requireAdmin, async (req, res) => {
 router.put('/models/:id', requireAdmin, async (req, res) => {
   try {
     const { id } = req.params;
-    const { name, provider = 'google', api_key, base_url, description, is_active, is_default, model_type = 'image' } = req.body;
+    const { name, provider, api_key, base_url, description, is_active, is_default, model_type = 'image' } = req.body;
     
     if (!name || !api_key || !base_url) {
       return res.status(400).json({ error: '模型名称、API密钥和API地址不能为空' });
@@ -615,18 +612,15 @@ router.put('/models/:id', requireAdmin, async (req, res) => {
       return res.status(400).json({ error: '模型类型必须是image' });
     }
     
-    if (!['google', 'doubao'].includes(provider)) {
-      return res.status(400).json({ error: '厂商必须是google或doubao' });
-    }
-    
     const modelData = {
       name,
-      provider,
+      provider: provider || 'default',
       api_key,
       base_url,
       description: description || '',
       is_active: is_active !== false,
-      is_default: is_default === true
+      is_default: is_default === true,
+      model_type
     };
     
     let success;

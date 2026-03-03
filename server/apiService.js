@@ -68,6 +68,13 @@ function getSizeParameterName(modelName) {
   return 'aspect_ratio';
 }
 
+// 检测是否为Gemini原生模型（nano-banana / gemini系列）
+function isGeminiNativeModel(modelName) {
+  if (!modelName) return false;
+  const name = modelName.toLowerCase();
+  return name.includes('nano-banana') || name.includes('gemini');
+}
+
 // 检测是否为gpt-image模型
 function isGptImageModel(modelName) {
   return modelName && modelName.toLowerCase().includes('gpt-image');
@@ -114,11 +121,137 @@ function validateAndAdjustSize(modelName, size) {
 
 // API服务
 const apiService = {
+  // Gemini 原生文生图
+  async generateTextToImageGemini(params, modelConfig) {
+    const endpoint = `/v1beta/models/${modelConfig.name}:generateContent`;
+    const requestBody = {
+      contents: [{ parts: [{ text: params.prompt }] }],
+      generationConfig: {
+        responseModalities: ['TEXT', 'IMAGE'],
+        imageConfig: {
+          aspectRatio: params.size || '1:1'
+        }
+      }
+    };
+
+    if (params.imageSize) {
+      requestBody.generationConfig.imageConfig.imageSize = params.imageSize;
+    }
+
+    console.log('Gemini 文生图请求:', { endpoint, model: modelConfig.name, size: params.size, imageSize: params.imageSize });
+
+    const response = await axios.post(`${modelConfig.base_url}${endpoint}`, requestBody, {
+      headers: {
+        'Content-Type': 'application/json',
+        'x-goog-api-key': modelConfig.api_key
+      },
+      timeout: 120000
+    });
+
+    return this.processGeminiResponse(response.data, params.userId);
+  },
+
+  // Gemini 原生图生图
+  async generateImageToImageGemini(params, modelConfig, imageArray) {
+    const parts = [{ text: params.prompt }];
+
+    for (const imgData of imageArray) {
+      let base64Data = imgData;
+      let mimeType = 'image/jpeg';
+
+      if (imgData.startsWith('data:')) {
+        const match = imgData.match(/^data:(image\/\w+);base64,(.+)$/);
+        if (match) {
+          mimeType = match[1];
+          base64Data = match[2];
+        } else {
+          base64Data = imgData.split(',')[1];
+        }
+      }
+
+      parts.push({
+        inline_data: {
+          mime_type: mimeType,
+          data: base64Data
+        }
+      });
+    }
+
+    const endpoint = `/v1beta/models/${modelConfig.name}:generateContent`;
+    const requestBody = {
+      contents: [{ parts }],
+      generationConfig: {
+        responseModalities: ['TEXT', 'IMAGE'],
+        imageConfig: {
+          aspectRatio: params.size || '1:1'
+        }
+      }
+    };
+
+    if (params.imageSize) {
+      requestBody.generationConfig.imageConfig.imageSize = params.imageSize;
+    }
+
+    console.log('Gemini 图生图请求:', { endpoint, model: modelConfig.name, imageCount: imageArray.length, size: params.size, imageSize: params.imageSize });
+
+    const response = await axios.post(`${modelConfig.base_url}${endpoint}`, requestBody, {
+      headers: {
+        'Content-Type': 'application/json',
+        'x-goog-api-key': modelConfig.api_key
+      },
+      timeout: 120000
+    });
+
+    return this.processGeminiResponse(response.data, params.userId);
+  },
+
+  // 处理 Gemini 响应：提取 base64 图片并上传 OSS
+  async processGeminiResponse(responseData, userId) {
+    const candidates = responseData.candidates;
+    if (!candidates || candidates.length === 0) {
+      throw new Error('Gemini 返回无有效候选结果');
+    }
+
+    const parts = candidates[0].content?.parts;
+    if (!parts || parts.length === 0) {
+      throw new Error('Gemini 返回无有效内容');
+    }
+
+    for (const part of parts) {
+      if (part.thought) continue;
+
+      if (part.inlineData) {
+        const { data: base64Data, mimeType } = part.inlineData;
+        const buffer = Buffer.from(base64Data, 'base64');
+        const ext = mimeType === 'image/png' ? 'png' : mimeType === 'image/webp' ? 'webp' : 'jpg';
+        const ossKey = `gemini/${userId || 'anonymous'}/${Date.now()}_${Math.random().toString(36).slice(2, 8)}.${ext}`;
+
+        try {
+          const ossUrl = await ossManager.uploadBuffer(buffer, ossKey, mimeType || 'image/png');
+          console.log('Gemini 图片已上传到 OSS:', ossUrl);
+          return { data: [{ url: ossUrl }] };
+        } catch (ossError) {
+          console.error('OSS 上传失败，降级为 data URL:', ossError.message);
+          const dataUrl = `data:${mimeType || 'image/png'};base64,${base64Data}`;
+          return { data: [{ url: dataUrl }] };
+        }
+      }
+    }
+
+    const textParts = parts.filter(p => p.text).map(p => p.text).join('\n');
+    throw new Error(`Gemini 未返回图片。模型回复: ${textParts.substring(0, 200)}`);
+  },
+
   // 文生图API调用
   async generateTextToImage(params) {
     try {
       // 获取图像模型配置
       const modelConfig = await getImageModelConfig(params.modelId);
+
+      // Gemini 原生模型走独立分支
+      if (isGeminiNativeModel(modelConfig.name)) {
+        return await this.generateTextToImageGemini(params, modelConfig);
+      }
 
       // 创建动态API客户端
       const dynamicApiClient = axios.create({
@@ -366,6 +499,11 @@ const apiService = {
         throw new Error('无法处理提供的图片');
       }
 
+      // Gemini 原生模型走独立分支
+      if (isGeminiNativeModel(modelConfig.name)) {
+        return await this.generateImageToImageGemini(params, modelConfig, imageArray);
+      }
+
       // 豆包即梦模型只支持单张参考图
       if (imageArray.length > 1 && (modelConfig.name.includes('doubao') || modelConfig.name.includes('seedream'))) {
         console.warn(`⚠️ 警告: ${modelConfig.name} 模型只支持单张参考图，将只使用第一张图片`);
@@ -555,7 +693,7 @@ const apiService = {
 
   // 批量生成图片（支持逐张回调）
   async generateMultipleImages(params, userId = null, onImageGenerated = null) {
-    const { prompt, size, quantity, mode, image, images, modelId } = params;
+    const { prompt, size, quantity, mode, image, images, modelId, imageSize } = params;
     const results = [];
     const originalUrls = []; // 存储原始URL用于后续转存
     let retryCount = 0; // 添加重试计数器
@@ -567,6 +705,7 @@ const apiService = {
       quantity,
       mode,
       modelId,
+      imageSize,
       hasImage: !!image,
       hasImages: images && images.length > 0,
       imageCount: images ? images.length : 0
@@ -588,7 +727,7 @@ const apiService = {
           let result;
 
           if (mode === 'text-to-image') {
-            result = await this.generateTextToImage({ prompt, size, modelId });
+            result = await this.generateTextToImage({ prompt, size, modelId, imageSize, userId });
           } else {
             // 图生图模式，传递所有图片
             result = await this.generateImageToImageWithFile({
@@ -596,7 +735,9 @@ const apiService = {
               size,
               image: image,  // 单张图片（向后兼容）
               images: images, // 多张图片
-              modelId: modelId
+              modelId: modelId,
+              imageSize,
+              userId
             });
           }
 
@@ -615,116 +756,49 @@ const apiService = {
               url: imageUrl,
               index: i + 1,
               timestamp: Date.now(),
-              originalUrl: imageUrl // 先保存原始URL
+              originalUrl: imageUrl // 始终保留模型返回的原始URL
             };
 
-            // 如果有用户ID，尝试转存这张图片到OSS（带超时控制和重试机制）
+            // 如果有用户ID，改为「后台转存到OSS」
+            // 前端先使用原始URL立即显示图片，转存由异步补偿服务处理
             if (userId) {
-              let ossTransferSuccess = false;
-              const maxOssRetries = 3; // 最多重试3次
-              let ossRetryCount = 0;
-
               // 检查是否已经是自己的OSS链接
-              // 正确的OSS URL格式应该是: https://bucket.region.aliyuncs.com/path
-              // 例如: https://creatimage.oss-cn-beijing.aliyuncs.com/path
               const isOwnOssUrl = imageUrl &&
                 imageUrl.includes(`${config.oss.bucket}.${config.oss.region}.aliyuncs.com`);
 
               if (isOwnOssUrl) {
                 // 已经是自己的OSS链接，不需要转存
                 console.log(`第${i + 1}张图片已经是自己的OSS链接，跳过转存:`, imageUrl);
-                imageResult.url = imageUrl;
                 imageResult.ossUrl = imageUrl;
                 imageResult.isOwnOss = true;
-                ossTransferSuccess = true;
               } else {
-                while (!ossTransferSuccess && ossRetryCount < maxOssRetries) {
-                  try {
-                    console.log(`开始转存第${i + 1}张图片到OSS... (尝试 ${ossRetryCount + 1}/${maxOssRetries})`);
+                // 标记需要后台转存，并推入OSS补偿队列
+                imageResult.needsOssRetry = true;
+                imageResult.ossRetryData = {
+                  originalUrl: imageUrl,
+                  userId: userId,
+                  timestamp: Date.now()
+                };
 
-                    // 先检查缓存中是否已有此URL的OSS映射
-                    const cachedMapping = await imageCacheService.getOssUrlMapping(imageUrl);
-
-                    if (cachedMapping && cachedMapping.ossUrl) {
-                      // 从缓存中获取到OSS URL，直接使用
-                      imageResult.url = cachedMapping.ossUrl;
-                      imageResult.ossUrl = cachedMapping.ossUrl;
-                      imageResult.ossKey = cachedMapping.ossKey;
-                      imageResult.size = cachedMapping.size;
-                      console.log(`第${i + 1}张图片从缓存获取OSS URL:`, cachedMapping.ossUrl);
-                      ossTransferSuccess = true;
-                    } else {
-                      // 缓存中没有，执行转存
-                      // 创建带超时的Promise，根据图片大小动态调整超时时间
-                      const ossUploadPromise = ossManager.downloadAndUploadImages([imageUrl], userId.toString(), 'generated-images');
-
-                      // 超长超时时间支持海外慢速下载（10分钟下载×3次重试=30分钟）
-                      // 加上OSS上传时间，设置总超时为35分钟（2100秒）
-                      const timeoutPromise = new Promise((_, reject) =>
-                        setTimeout(() => reject(new Error('转存超时')), 2100000) // 2100秒（35分钟）超时
-                      );
-
-                      // 使用Promise.race，取最先完成的
-                      const ossResults = await Promise.race([ossUploadPromise, timeoutPromise]);
-
-                      if (ossResults && ossResults.length > 0 && ossResults[0].url && !ossResults[0].error) {
-                        // 使用OSS URL替换原始URL
-                        imageResult.url = ossResults[0].url;
-                        imageResult.ossUrl = ossResults[0].url;
-                        imageResult.ossKey = ossResults[0].key;
-                        imageResult.size = ossResults[0].size;
-                        console.log(`第${i + 1}张图片转存成功:`, ossResults[0].url);
-
-                        // 缓存URL映射
-                        await imageCacheService.cacheOssUrlMapping(imageUrl, ossResults[0].url, {
-                          ossKey: ossResults[0].key,
-                          size: ossResults[0].size
-                        });
-
-                        ossTransferSuccess = true;
-                      } else {
-                        throw new Error('OSS转存返回结果无效');
-                      }
-                    }
-                  } catch (ossError) {
-                    ossRetryCount++;
-                    console.error(`第${i + 1}张图片转存到OSS失败 (尝试 ${ossRetryCount}/${maxOssRetries}):`, ossError.message);
-
-                    if (ossRetryCount < maxOssRetries) {
-                      // 等待后重试，使用指数退避
-                      const retryDelay = Math.min(1000 * Math.pow(2, ossRetryCount - 1), 5000);
-                      console.log(`等待 ${retryDelay}ms 后重试OSS转存...`);
-                      await new Promise(resolve => setTimeout(resolve, retryDelay));
-                    } else {
-                      // 达到最大重试次数，将任务加入后台补偿队列
-                      console.error(`第${i + 1}张图片转存失败，已达到最大重试次数，加入后台补偿队列`);
-
-                      // 标记需要后台补偿
-                      imageResult.needsOssRetry = true;
-                      imageResult.ossRetryData = {
+                try {
+                  const redisClient = imageCacheService.redis.getClient();
+                  if (redisClient && imageCacheService.redis.isConnectedToRedis()) {
+                    await redisClient.lPush(
+                      'oss:retry:queue',
+                      JSON.stringify({
                         originalUrl: imageUrl,
                         userId: userId,
-                        timestamp: Date.now()
-                      };
-
-                      // TODO: 将任务加入后台补偿队列（可以使用Redis队列或数据库）
-                      try {
-                        await imageCacheService.redis.lpush(
-                          'oss:retry:queue',
-                          JSON.stringify({
-                            originalUrl: imageUrl,
-                            userId: userId,
-                            historyRecordId: null, // 稍后更新
-                            timestamp: Date.now(),
-                            retryCount: 0
-                          })
-                        );
-                        console.log(`已将图片加入OSS补偿队列: ${imageUrl.substring(0, 50)}...`);
-                      } catch (queueError) {
-                        console.error('加入补偿队列失败:', queueError);
-                      }
-                    }
+                        historyRecordId: null, // 稍后由ossRetryService.updateQueueHistoryId补充
+                        timestamp: Date.now(),
+                        retryCount: 0
+                      })
+                    );
+                    console.log(`已将图片加入OSS转存队列: ${imageUrl.substring(0, 50)}...`);
+                  } else {
+                    console.warn('Redis未连接，无法将图片加入OSS转存队列');
                   }
+                } catch (queueError) {
+                  console.error('加入OSS转存队列失败:', queueError);
                 }
               }
             }
@@ -733,7 +807,7 @@ const apiService = {
             results.push(imageResult);
             success = true; // 标记成功
 
-            // 每张图片生成完成后立即通知（转存后的URL或原始URL）
+            // 每张图片生成完成后立即通知（使用原始URL立即更新前端UI）
             if (onImageGenerated) {
               await onImageGenerated(imageResult, i, quantity);
             }

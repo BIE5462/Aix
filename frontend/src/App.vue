@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <div class="app-root">
     <!-- 左侧导航栏 -->
     <Sidebar
@@ -788,6 +788,22 @@
                 </div>
               </div>
           </div>
+
+          <!-- 分辨率选择器 - 仅 Gemini 系列模型显示 -->
+          <div v-if="currentParamConfig.imageSizeOptions" class="setting-item">
+            <h3>图片分辨率</h3>
+            <div class="tag-selector">
+              <div
+                v-for="option in currentParamConfig.imageSizeOptions"
+                :key="option.value"
+                class="tag-option"
+                :class="{ active: imageResolution === option.value }"
+                @click="imageResolution = option.value"
+              >
+                {{ option.label }}
+              </div>
+            </div>
+          </div>
           
           <div class="setting-item">
             <h3>生成数量</h3>
@@ -1321,6 +1337,7 @@ const selectedVideoPromptIds = ref(new Set()) // 选中的视频常用提示词I
 const videoTagMapping = ref({}) // 视频标签映射
 const showVideoPromptsManager = ref(false) // 视频提示词管理器显示状态
 const imageSize = ref('1024x1792')
+const imageResolution = ref('1K')
 const generateQuantity = ref(1)
 
 // 模型选择相关
@@ -1400,7 +1417,16 @@ const providerConfig = {
       { label: '3:2', value: '3:2' },
       { label: '4:5', value: '4:5' },
       { label: '5:4', value: '5:4' },
-      { label: '21:9', value: '21:9' }
+      { label: '21:9', value: '21:9' },
+      { label: '1:4', value: '1:4' },
+      { label: '4:1', value: '4:1' },
+      { label: '1:8', value: '1:8' },
+      { label: '8:1', value: '8:1' }
+    ],
+    imageSizeOptions: [
+      { label: '标准 (1K)', value: '1K' },
+      { label: '高清 (2K)', value: '2K' },
+      { label: '超清 (4K)', value: '4K' }
     ]
   },
   qianwen: {
@@ -3453,7 +3479,8 @@ const generateImage = async () => {
       quantity: generateQuantity.value,
       mode: generationMode.value,
       modelId: selectedModelId.value,
-      images: validFiles // 传递过滤后的图片
+      images: validFiles, // 传递过滤后的图片
+      imageSize: imageResolution.value
     })
 
     console.log('生成任务提交结果:', result)
@@ -7054,8 +7081,16 @@ const handleLoginSuccess = async (user) => {
   currentUser.value = user
   isLoggedIn.value = true
 
-  // 优先加载关键数据
-  fetchUserCredits() // 获取用户积分
+  // 优先加载关键数据（并行加载）
+  Promise.all([
+    fetchAvailableModels(), // 获取可用模型列表
+    fetchVideoModels(), // 获取视频模型列表
+    fetchUserCredits() // 获取用户积分
+  ]).then(() => {
+    console.log('[登录] 关键数据加载完成')
+  }).catch(error => {
+    console.error('[登录] 关键数据加载失败:', error)
+  })
 
   // 延迟加载非关键数据
   setTimeout(() => {
@@ -7064,7 +7099,7 @@ const handleLoginSuccess = async (user) => {
     loadUserPrompts()
   }, 300)
 
-  // 检测并上传localStorage中的提示词（后台执行）
+  // 检测并上传 localStorage 中的提示词（后台执行）
   checkAndUploadLocalStoragePrompts()
 }
 

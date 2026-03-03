@@ -311,7 +311,10 @@ router.get('/models', async (req, res) => {
           id: model.id,
           name: model.name,
           description: model.description,
-          is_default: Boolean(model.is_default)
+          is_default: Boolean(model.is_default),
+          provider: model.provider || 'google',
+          model_type: model.model_type || 'image',
+          supported_modes: model.model_type === 'video' ? 'image-to-video' : 'both'
         }))
       }
     });

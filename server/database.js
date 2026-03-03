@@ -105,7 +105,10 @@ const initDatabase = async () => {
         file_size INT NULL COMMENT '文件大小(字节)',
         mime_type VARCHAR(100) NULL COMMENT 'MIME类型',
         oss_url VARCHAR(500) NULL COMMENT 'OSS URL',
+        oss_key VARCHAR(500) NULL COMMENT 'OSS文件key',
         oss_thumbnail_url VARCHAR(500) NULL COMMENT 'OSS缩略图URL',
+        oss_thumbnail_key VARCHAR(500) NULL COMMENT 'OSS缩略图key',
+        compressed_size INT NULL COMMENT '压缩后文件大小(字节)',
         is_prompt_reference TINYINT(1) DEFAULT 0 COMMENT '是否为提示词参考图',
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -123,7 +126,10 @@ const initDatabase = async () => {
       { name: 'file_size', def: "INT NULL COMMENT '文件大小(字节)'" },
       { name: 'mime_type', def: "VARCHAR(100) NULL COMMENT 'MIME类型'" },
       { name: 'oss_url', def: "VARCHAR(500) NULL COMMENT 'OSS URL'" },
+      { name: 'oss_key', def: "VARCHAR(500) NULL COMMENT 'OSS文件key'" },
       { name: 'oss_thumbnail_url', def: "VARCHAR(500) NULL COMMENT 'OSS缩略图URL'" },
+      { name: 'oss_thumbnail_key', def: "VARCHAR(500) NULL COMMENT 'OSS缩略图key'" },
+      { name: 'compressed_size', def: "INT NULL COMMENT '压缩后文件大小(字节)'" },
       { name: 'is_prompt_reference', def: "TINYINT(1) DEFAULT 0 COMMENT '是否为提示词参考图'" }
     ];
     for (const col of referenceImagesColumns) {
@@ -230,6 +236,8 @@ const initDatabase = async () => {
         is_default TINYINT(1) DEFAULT '0' COMMENT '是否为默认模型',
         is_active TINYINT(1) DEFAULT '1' COMMENT '是否启用',
         description TEXT COLLATE utf8mb4_unicode_ci COMMENT '模型描述',
+        provider VARCHAR(50) DEFAULT 'google' COMMENT '模型厂商: google/doubao',
+        model_type VARCHAR(50) DEFAULT 'image' COMMENT '模型类型: image/video',
         created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
         updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
         PRIMARY KEY (id),
@@ -238,6 +246,23 @@ const initDatabase = async () => {
         KEY idx_is_active (is_active)
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='AI图像模型管理表'
     `);
+    
+    // 迁移：如果 provider 和 model_type 字段不存在，则添加
+    try {
+      await pool.execute(`ALTER TABLE ai_models ADD COLUMN provider VARCHAR(50) DEFAULT 'google' COMMENT '模型厂商: google/doubao' AFTER description`);
+    } catch (error) {
+      if (!error.message.includes('Duplicate column name')) {
+        throw error;
+      }
+    }
+    
+    try {
+      await pool.execute(`ALTER TABLE ai_models ADD COLUMN model_type VARCHAR(50) DEFAULT 'image' COMMENT '模型类型: image/video' AFTER provider`);
+    } catch (error) {
+      if (!error.message.includes('Duplicate column name')) {
+        throw error;
+      }
+    }
 
     
     
@@ -841,7 +866,7 @@ const aiModelService = {
   // 添加图像模型
   async addModel(modelData) {
     try {
-      const { name, description, api_key, base_url, is_default = false, is_active = true } = modelData;
+      const { name, description, api_key, base_url, is_default = false, is_active = true, provider = 'google', model_type = 'image' } = modelData;
 
       // 如果设置为默认模型，先取消其他模型的默认状态
       if (is_default) {
@@ -849,8 +874,8 @@ const aiModelService = {
       }
 
       const [result] = await pool.execute(
-        'INSERT INTO ai_models (name, description, api_key, base_url, is_default, is_active) VALUES (?, ?, ?, ?, ?, ?)',
-        [name, description, api_key, base_url, is_default, is_active]
+        'INSERT INTO ai_models (name, description, api_key, base_url, is_default, is_active, provider, model_type) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+        [name, description, api_key, base_url, is_default, is_active, provider, model_type]
       );
 
       // 清除模型列表缓存
@@ -866,7 +891,7 @@ const aiModelService = {
   // 更新图像模型
   async updateModel(id, modelData) {
     try {
-      const { name, description, api_key, base_url, is_default = false, is_active = true } = modelData;
+      const { name, description, api_key, base_url, is_default = false, is_active = true, provider = 'google', model_type = 'image' } = modelData;
 
       // 如果设置为默认模型，先取消其他模型的默认状态
       if (is_default) {
@@ -874,8 +899,8 @@ const aiModelService = {
       }
 
       const [result] = await pool.execute(
-        'UPDATE ai_models SET name = ?, description = ?, api_key = ?, base_url = ?, is_default = ?, is_active = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
-        [name, description, api_key, base_url, is_default, is_active, id]
+        'UPDATE ai_models SET name = ?, description = ?, api_key = ?, base_url = ?, is_default = ?, is_active = ?, provider = ?, model_type = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
+        [name, description, api_key, base_url, is_default, is_active, provider, model_type, id]
       );
 
       // 清除模型列表缓存

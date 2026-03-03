@@ -229,7 +229,7 @@ app.post('/api/generate', authenticateToken, upload.fields([
   { name: 'images', maxCount: 10 }
 ]), async (req, res) => {
   try {
-    const { prompt, size, quantity, mode, modelId } = req.body;
+    const { prompt, size, quantity, mode, modelId, imageSize } = req.body;
     const image = req.files?.image?.[0]; // 单张图片（向后兼容）
     const images = req.files?.images || []; // 多张图片
 
@@ -270,8 +270,10 @@ app.post('/api/generate', authenticateToken, upload.fields([
       });
     } catch (error) {
       console.error('计算价格失败:', error);
-      // 如果价格计算失败，使用默认价格（兼容旧数据）
-      requiredCredits = quantityNum * 2; // 默认2弹珠/张
+      // 不再使用硬编码默认价格，直接返回错误，提示管理员配置模型价格
+      return res.status(400).json({
+        error: error.message || '当前模型未配置价格，请联系管理员'
+      });
     }
 
     // 检查用户余额
@@ -313,7 +315,8 @@ app.post('/api/generate', authenticateToken, upload.fields([
       images,
       modelId,
       requiredCredits,
-      modelKey
+      modelKey,
+      imageSize
     }, req.user);
 
     res.json({
@@ -622,9 +625,11 @@ app.get('/api/proxy-image', async (req, res) => {
     const allowedDomains = [
       'creatimage.oss-cn-beijing.aliyuncs.com',
       'tos-cn-beijing.volces.com',
+      'tos-ap-southeast-1.volces.com', // 豆包东南亚存储域名
       'ark-content-generation',
       'webstatic.aiproxy.vip',  // AI代理服务的图片域名
       'files.closeai.fans',  // CloseAI 图片域名
+      'bie.oss-cn-guangzhou.aliyuncs.com', // 生成图片所在的华南OSS域名
       'localhost'  // 本地开发
     ];
 

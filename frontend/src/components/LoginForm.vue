@@ -15,8 +15,8 @@
       <!-- 左侧介绍区域 -->
       <div class="intro-section">
         <div class="logo-container">
-          <img src="/logo.png" alt="Conflux AI" class="logo" />
-          <h1 class="brand-name">Conflux AI</h1>
+          <img src="/logo.png" alt="千海AI" class="logo" />
+          <h1 class="brand-name">千海AI</h1>
           <p class="brand-subtitle">AI设计产品</p>
         </div>
         
@@ -53,7 +53,7 @@
         <div class="login-card">
           <div class="login-header">
             <h2>欢迎回来</h2>
-            <p>登录您的Conflux AI账户</p>
+            <p>登录您的千海AI账户</p>
           </div>
           
           <el-form 

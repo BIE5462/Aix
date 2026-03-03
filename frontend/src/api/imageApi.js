@@ -76,6 +76,11 @@ export const generateImages = async (params) => {
       })
     }
 
+    // 传递分辨率参数（Gemini 模型专用）
+    if (params.imageSize) {
+      formData.append('imageSize', params.imageSize)
+    }
+
     console.log('生成图片请求参数:', {
       prompt: params.prompt,
       size: params.size,

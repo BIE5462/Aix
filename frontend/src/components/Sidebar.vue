@@ -1,9 +1,9 @@
-﻿<template>
+<template>
   <div class="sidebar">
     <!-- Logo 和品牌名 -->
     <div class="sidebar-header">
-      <img src="/LOGO.png" alt="Conflux AI" class="sidebar-logo" />
-      <h2 class="sidebar-brand">Conflux AI</h2>
+      <img src="/LOGO.png" alt="千海AI" class="sidebar-logo" />
+      <h2 class="sidebar-brand">千海AI</h2>
     </div>
     
     <!-- 导航菜单 -->

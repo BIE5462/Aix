@@ -36,6 +36,11 @@
             <span>图像模型管理</span>
           </el-menu-item>
           
+          <el-menu-item index="/model-pricing">
+            <el-icon><Setting /></el-icon>
+            <span>模型价格管理</span>
+          </el-menu-item>
+          
           <el-menu-item index="/video-models">
             <el-icon><VideoCamera /></el-icon>
             <span>视频模型管理</span>
@@ -105,6 +110,7 @@ export default {
         '/users': '用户管理',
         '/content': '内容管理',
         '/models': '图像模型管理',
+        '/model-pricing': '模型价格管理',
         '/video-models': '视频模型管理',
         '/text-models': '文字模型管理'
       }
