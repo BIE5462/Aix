@@ -389,7 +389,7 @@ onMounted(() => {
 .filter-label {
   font-size: 14px;
   font-weight: 500;
-  color: var(--text-primary);
+  color: var(--text-main);
 }
 
 /* 加载状态 */
@@ -453,7 +453,7 @@ onMounted(() => {
 .no-more {
   text-align: center;
   padding: 30px 0;
-  color: #9ca3af;
+  color: var(--text-muted);
   font-size: 14px;
 }
 
@@ -468,7 +468,7 @@ onMounted(() => {
   width: 100%;
   border-radius: 8px;
   overflow: hidden;
-  background: #f5f7fa;
+  background: rgba(0, 0, 0, 0.2);
 }
 
 .detail-image,
@@ -497,25 +497,25 @@ onMounted(() => {
 .username {
   font-size: 16px;
   font-weight: 600;
-  color: #1a1a1a;
+  color: var(--text-main);
 }
 
 .create-time {
   font-size: 13px;
-  color: #9ca3af;
+  color: var(--text-muted);
   margin-top: 2px;
 }
 
 .detail-section h4 {
   font-size: 14px;
   font-weight: 600;
-  color: #374151;
+  color: var(--text-main);
   margin: 0 0 10px 0;
 }
 
 .prompt-text {
   font-size: 14px;
-  color: #6b7280;
+  color: var(--text-muted);
   line-height: 1.6;
   margin: 0;
   white-space: pre-wrap;

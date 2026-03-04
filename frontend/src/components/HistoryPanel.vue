@@ -4,7 +4,13 @@
       <!-- 分类筛选 -->
       <el-segmented v-model="contentTypeFilter" :options="contentTypeOptions" class="content-filter" />
 
-      <el-button type="danger" size="small" @click="clearAllHistory" :icon="Delete">
+      <el-button 
+        class="clear-history-btn" 
+        size="small" 
+        @click="clearAllHistory" 
+        :icon="Delete"
+        text
+      >
         清空历史
       </el-button>
     </div>
@@ -869,4 +875,32 @@ defineExpose({
   background: #a8a8a8;
 }
 
+.clear-history-btn {
+  margin-left: auto;
+  color: #ef4444 !important;
+  background: rgba(239, 68, 68, 0.08) !important;
+  border: 1px solid rgba(239, 68, 68, 0.15) !important;
+  transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1) !important;
+  border-radius: 8px !important;
+  padding: 6px 12px !important;
+  height: 28px !important;
+  font-size: 12px !important;
+  font-weight: 600 !important;
+}
+
+.clear-history-btn:hover {
+  background: rgba(239, 68, 68, 0.15) !important;
+  border-color: rgba(239, 68, 68, 0.3) !important;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(239, 68, 68, 0.2);
+}
+
+.clear-history-btn:active {
+  transform: translateY(0);
+  background: rgba(239, 68, 68, 0.2) !important;
+}
+
+.clear-history-btn :deep(.el-icon) {
+  margin-right: 4px;
+}
 </style>

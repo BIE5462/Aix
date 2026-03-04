@@ -5,9 +5,11 @@ import * as ElementPlusIconsVue from '@element-plus/icons-vue'
 import App from './App.vue'
 
 // 导入主题样式
-import './styles/theme.css'
-import './styles/element-theme.css'
-import './styles/element-override.css'
+import './styles/variables-neon.css'
+import './styles/global-neon.css'
+// import './styles/theme.css' // 旧变量保留但停用
+// import './styles/element-theme.css' // 旧主题停用
+import './styles/element-neon-override.css' // 新的深度定制
 
 const app = createApp(App)
 

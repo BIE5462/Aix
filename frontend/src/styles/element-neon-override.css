@@ -1,0 +1,271 @@
+/* ==========================================
+   Conflux Dreamscape - Element Plus 深度定制
+   Light Glassmorphism Edition
+   ========================================== */
+
+/* 覆盖 Element Plus 基础变量 */
+:root {
+  --el-color-primary: var(--color-primary);
+  --el-color-success: var(--color-secondary);
+  --el-color-warning: var(--color-accent);
+  --el-color-danger: var(--color-danger);
+  --el-text-color-primary: var(--text-main);
+  --el-text-color-regular: var(--text-muted);
+  --el-text-color-secondary: var(--text-faint);
+  --el-bg-color: transparent;
+  --el-fill-color-blank: transparent;
+  --el-border-color: rgba(29, 29, 31, 0.12);
+  --el-border-color-light: rgba(29, 29, 31, 0.08);
+  --el-bg-color-overlay: rgba(255, 255, 255, 0.9);
+}
+
+/* Button - 适应浅色背景 */
+.el-button {
+  background: rgba(255, 255, 255, 0.68);
+  border: 1px solid rgba(255, 255, 255, 0.78);
+  color: var(--text-main);
+  backdrop-filter: blur(14px);
+  transition: all var(--transition-base);
+  border-radius: var(--radius-sm);
+  box-shadow: 0 2px 10px rgba(15, 23, 42, 0.08);
+}
+
+.el-button:hover {
+  background: rgba(255, 255, 255, 0.9);
+  border-color: var(--color-primary);
+  transform: translateY(-2px);
+  box-shadow: 0 8px 20px rgba(0, 122, 255, 0.18);
+  color: var(--color-primary);
+}
+
+.el-button--primary {
+  background: var(--color-primary);
+  border: none;
+  color: #fff;
+  box-shadow: var(--glow-primary);
+}
+
+.el-button--primary:hover {
+  background: #006be0;
+  color: #fff;
+  box-shadow: 0 8px 22px rgba(0, 122, 255, 0.4);
+  transform: translateY(-2px);
+}
+
+.el-button--success {
+  background: var(--color-secondary);
+  border: none;
+  color: #fff;
+  box-shadow: 0 6px 18px rgba(52, 199, 89, 0.34);
+}
+
+/* Card - 亮色玻璃态 */
+.el-card {
+  background: var(--glass-level-2-bg);
+  border: 1px solid var(--glass-level-2-border);
+  backdrop-filter: var(--glass-level-2-backdrop);
+  color: var(--text-main);
+  border-radius: var(--radius-lg);
+  overflow: visible;
+  transition: all 0.3s ease;
+  box-shadow: var(--glass-level-2-shadow);
+}
+
+.el-card:hover {
+  border-color: rgba(255, 255, 255, 0.95);
+  background: rgba(255, 255, 255, 0.8);
+  transform: translateY(-3px);
+  box-shadow: 0 14px 34px rgba(15, 23, 42, 0.1);
+}
+
+.el-card__header {
+  border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+  padding: 16px 24px;
+}
+
+.el-card__body {
+  padding: 24px;
+}
+
+/* Dialog/Overlay */
+.el-dialog {
+  background: var(--glass-level-3-bg);
+  backdrop-filter: var(--glass-level-3-backdrop);
+  border: 1px solid var(--glass-level-3-border);
+  box-shadow: var(--glass-level-3-shadow);
+  border-radius: var(--radius-lg);
+}
+
+.el-dialog__header {
+  border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+  margin-right: 0;
+}
+
+.el-dialog__title {
+  color: var(--text-main);
+  font-weight: 700;
+}
+
+.el-dialog__body {
+  color: var(--text-main);
+}
+
+/* Input - 增强对比度 */
+.el-input__wrapper {
+  background: rgba(255, 255, 255, 0.72);
+  box-shadow: none;
+  border: 1px solid rgba(29, 29, 31, 0.12);
+  border-radius: var(--radius-sm);
+  padding: 4px 12px;
+}
+
+.el-input__wrapper:hover {
+  border-color: var(--color-primary);
+  background: rgba(255, 255, 255, 0.9);
+}
+
+.el-input__wrapper.is-focus {
+  box-shadow: 0 0 0 3px rgba(0, 122, 255, 0.15);
+  background: #fff;
+  border-color: var(--color-primary);
+}
+
+.el-input__inner {
+  color: var(--text-main);
+}
+
+.el-textarea__inner {
+  background: rgba(255, 255, 255, 0.72);
+  box-shadow: none;
+  border: 1px solid rgba(29, 29, 31, 0.12);
+  border-radius: var(--radius-sm);
+  color: var(--text-main);
+  padding: 12px;
+}
+
+.el-textarea__inner:focus {
+  box-shadow: 0 0 0 3px rgba(0, 122, 255, 0.15);
+  background: #fff;
+  border-color: var(--color-primary);
+}
+
+/* Select/Dropdown */
+.el-select-dropdown {
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(24px);
+  border: 1px solid rgba(255, 255, 255, 0.96);
+  border-radius: var(--radius-md);
+  box-shadow: 0 16px 40px rgba(15, 23, 42, 0.12);
+}
+
+.el-select-dropdown__item {
+  color: var(--text-main);
+}
+
+.el-select-dropdown__item.hover, .el-select-dropdown__item:hover {
+  background-color: rgba(0, 122, 255, 0.1);
+  color: var(--color-primary);
+}
+
+.el-select-dropdown__item.selected {
+  color: var(--color-primary);
+  font-weight: 600;
+  background-color: rgba(0, 122, 255, 0.12);
+}
+
+/* Tabs */
+.el-tabs__item {
+  color: var(--text-muted);
+  transition: all 0.3s;
+  font-weight: 500;
+}
+
+.el-tabs__item:hover {
+  color: var(--color-primary);
+}
+
+.el-tabs__item.is-active {
+  color: var(--color-primary);
+  font-weight: 700;
+}
+
+.el-tabs__nav-wrap::after {
+  background-color: rgba(0, 0, 0, 0.05);
+}
+
+.el-tabs__active-bar {
+  background-color: var(--color-primary);
+  height: 3px;
+  border-radius: 3px;
+  box-shadow: 0 2px 8px rgba(0, 122, 255, 0.34);
+}
+
+/* Tag */
+.el-tag {
+  background: rgba(255, 255, 255, 0.62);
+  border: 1px solid rgba(29, 29, 31, 0.08);
+  color: var(--text-main);
+  border-radius: 6px;
+}
+
+.el-tag--success {
+  background: rgba(44, 182, 125, 0.1);
+  border-color: rgba(44, 182, 125, 0.2);
+  color: var(--color-secondary);
+}
+
+/* Loading */
+.el-loading-mask {
+  background-color: rgba(255, 255, 255, 0.8);
+  backdrop-filter: blur(4px);
+}
+
+/* Switch */
+.el-switch__core {
+  background: rgba(0,0,0,0.1);
+  border-color: transparent;
+}
+
+/* Pagination */
+.el-pagination {
+  --el-pagination-bg-color: transparent;
+  --el-pagination-text-color: var(--text-muted);
+  --el-pagination-button-color: var(--text-main);
+  --el-pagination-button-disabled-color: var(--text-faint);
+  --el-pagination-button-bg-color: rgba(255, 255, 255, 0.6);
+  --el-pagination-hover-color: var(--color-primary);
+}
+
+.el-pagination.is-background .btn-next,
+.el-pagination.is-background .btn-prev,
+.el-pagination.is-background .el-pager li {
+  background-color: rgba(255, 255, 255, 0.6);
+  color: var(--text-main);
+  border: 1px solid rgba(0, 0, 0, 0.05);
+  border-radius: 8px;
+}
+
+.el-pagination.is-background .el-pager li:not(.is-disabled).is-active {
+  background-color: var(--color-primary);
+  color: #fff;
+  border-color: var(--color-primary);
+  box-shadow: 0 5px 12px rgba(0, 122, 255, 0.32);
+}
+
+/* Collapse */
+.el-collapse {
+  --el-collapse-border-color: rgba(0, 0, 0, 0.05);
+  --el-collapse-header-bg-color: transparent;
+  --el-collapse-header-text-color: var(--text-main);
+  --el-collapse-content-bg-color: transparent;
+  --el-collapse-content-text-color: var(--text-main);
+}
+
+.el-collapse-item__header {
+  border-bottom-color: rgba(0, 0, 0, 0.05);
+  font-weight: 600;
+}
+
+.el-collapse-item__wrap {
+  border-bottom-color: rgba(0, 0, 0, 0.05);
+}

@@ -619,23 +619,19 @@ app.get('/api/proxy-image', async (req, res) => {
       return res.status(400).json({ error: '缺少图片URL参数' });
     }
 
-    // 验证URL是否为允许的域名
-    const allowedDomains = [
-      'creatimage.oss-cn-beijing.aliyuncs.com',
-      'tos-cn-beijing.volces.com',
-      'tos-ap-southeast-1.volces.com', // 豆包东南亚存储域名
-      'ark-content-generation',
-      'webstatic.aiproxy.vip',  // AI代理服务的图片域名
-      'files.closeai.fans',  // CloseAI 图片域名
-      'bie.oss-cn-guangzhou.aliyuncs.com', // 生成图片所在的华南OSS域名
-      'localhost'  // 本地开发
-    ];
-
-    const isAllowedDomain = allowedDomains.some(domain => url.includes(domain));
-    if (!isAllowedDomain) {
-      console.error('代理图片请求失败: 不允许的域名:', url);
+    // 若希望允许任意域名，这里移除域名白名单，仅做简单的协议验证
+    try {
+      const parsed = new URL(url);
+      if (!['http:', 'https:'].includes(parsed.protocol)) {
+        console.error('代理图片请求失败: 不支持的协议', parsed.protocol);
+        return res.status(400).json({ error: '不支持的URL协议' });
+      }
+    } catch (e) {
+      console.error('代理图片请求失败: URL解析错误', e.message);
       return res.status(400).json({ error: '无效的图片URL' });
     }
+
+    // 注意：移除域名限制会放大 SSRF 风险，请在生产环境根据需求采取额外防护。
 
     console.log('代理图片请求:', url);
 

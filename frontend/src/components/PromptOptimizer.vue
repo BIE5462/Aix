@@ -489,82 +489,109 @@ onMounted(() => {
 .category-panel {
   width: 240px;
   flex-shrink: 0;
-  background: var(--bg-card);
-  border-right: 1px solid var(--border-light);
-  padding: 20px 16px;
+  background: var(--glass-level-1-bg);
+  backdrop-filter: var(--glass-level-1-backdrop);
+  border-right: 1px solid rgba(0, 0, 0, 0.05);
+  padding: 24px 16px;
   overflow-y: auto;
+  transition: all 0.3s ease;
+  position: relative;
+  z-index: 10;
+  box-shadow: 1px 0 20px rgba(0, 0, 0, 0.02);
 }
 
 .panel-label {
   font-size: 12px;
-  font-weight: 600;
-  color: var(--text-tertiary);
+  font-weight: 700;
+  color: var(--text-muted);
   text-transform: uppercase;
-  letter-spacing: 1px;
+  letter-spacing: 1.5px;
   margin-bottom: 12px;
   padding-left: 12px;
+  opacity: 0.8;
 }
 
 .panel-divider {
   height: 1px;
-  background: var(--border-light);
-  margin: 16px 0 12px;
+  background: var(--glass-level-1-border);
+  margin: 16px 8px 16px;
+  opacity: 0.5;
 }
 
 .category-item {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   gap: 12px;
-  padding: 14px 12px;
+  padding: 12px 16px;
   border-radius: var(--radius-md);
   cursor: pointer;
-  transition: all var(--transition-base);
+  transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
   margin-bottom: 4px;
   border: 1px solid transparent;
+  position: relative;
+  overflow: hidden;
 }
 
 .category-item:hover {
-  background: var(--bg-hover);
+  background: rgba(255, 255, 255, 0.5);
+  transform: translateX(4px);
 }
 
 .category-item.active {
-  background: var(--primary-blue-bg);
-  border-color: var(--primary-blue-light);
+  background: rgba(127, 90, 240, 0.1);
+  border-color: rgba(127, 90, 240, 0.2);
+  box-shadow: 0 4px 12px rgba(127, 90, 240, 0.15);
+}
+
+.category-item.active::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 4px;
+  background: var(--color-primary);
+  border-radius: 4px 0 0 4px;
 }
 
 .category-item.active .category-icon {
-  color: var(--primary-blue);
+  color: var(--color-primary);
+  transform: scale(1.1);
 }
 
 .category-item.active .category-name {
-  color: var(--primary-blue);
-  font-weight: 600;
+  color: var(--color-primary);
+  font-weight: 700;
 }
 
 .category-icon {
   font-size: 20px;
-  color: var(--text-tertiary);
+  color: var(--text-muted);
   flex-shrink: 0;
-  margin-top: 2px;
+  margin-top: 0;
+  transition: all 0.3s ease;
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.05));
 }
 
 .category-info {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 2px;
   min-width: 0;
 }
 
 .category-name {
   font-size: 14px;
-  font-weight: 500;
-  color: var(--text-primary);
+  font-weight: 600;
+  color: var(--text-main);
+  transition: color 0.3s ease;
 }
 
 .category-desc {
-  font-size: 12px;
-  color: var(--text-tertiary);
+  font-size: 11px;
+  color: var(--text-muted);
   line-height: 1.4;
+  opacity: 0.8;
 }
 
 /* --- 右侧主内容区 --- */
@@ -592,45 +619,81 @@ onMounted(() => {
 
 .template-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-  gap: 12px;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 16px;
 }
 
 .template-card {
-  padding: 14px 16px;
-  border-radius: var(--radius-md);
-  border: 1px solid var(--border-light);
-  background: var(--bg-card);
+  position: relative;
+  padding: 18px 20px;
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--glass-level-2-border);
+  background: var(--glass-level-2-bg);
+  backdrop-filter: var(--glass-level-2-backdrop);
   cursor: pointer;
-  transition: all var(--transition-base);
+  transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+  overflow: hidden;
+}
+
+/* 玻璃态光效 */
+.template-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -50%;
+  width: 200%;
+  height: 100%;
+  background: linear-gradient(
+    to right,
+    transparent,
+    rgba(255, 255, 255, 0.2),
+    transparent
+  );
+  transform: skewX(-20deg);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.5s;
 }
 
 .template-card:hover {
-  border-color: var(--primary-blue-light);
-  box-shadow: var(--shadow-sm);
+  transform: translateY(-4px);
+  border-color: var(--color-primary);
+  background: rgba(255, 255, 255, 0.8);
+  box-shadow: 0 12px 24px rgba(127, 90, 240, 0.15);
+}
+
+.template-card:hover::before {
+  opacity: 1;
+  animation: shine 1.5s infinite;
 }
 
 .template-card.active {
-  border-color: var(--primary-blue);
-  background: var(--primary-blue-bg);
-  box-shadow: 0 0 0 1px var(--primary-blue);
+  border-color: var(--color-primary);
+  background: rgba(127, 90, 240, 0.1);
+  box-shadow: 0 0 0 1px var(--color-primary), 0 8px 20px rgba(127, 90, 240, 0.2);
 }
 
 .template-name {
-  font-size: 14px;
+  font-size: 15px;
   font-weight: 600;
-  color: var(--text-primary);
-  margin-bottom: 6px;
+  color: var(--text-main);
+  margin-bottom: 8px;
+  letter-spacing: 0.2px;
 }
 
 .template-desc {
-  font-size: 12px;
-  color: var(--text-tertiary);
+  font-size: 13px;
+  color: var(--text-muted);
   line-height: 1.5;
   display: -webkit-box;
-  -webkit-line-clamp: 2;
+  -webkit-line-clamp: 3;
   -webkit-box-orient: vertical;
   overflow: hidden;
+}
+
+@keyframes shine {
+  0% { transform: translateX(-100%) skewX(-20deg); }
+  100% { transform: translateX(100%) skewX(-20deg); }
 }
 
 /* --- 输入区 --- */

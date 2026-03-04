@@ -7741,14 +7741,17 @@ body.el-popup-parent--hidden {
 
 
 .main-layout {
-  display: flex;
-  min-height: 100%;
+  display: grid;
+  grid-template-columns: 320px 1fr 380px;
+  grid-template-rows: 100%;
+  grid-template-areas: "left result control";
+  gap: 24px;
+  padding: 24px;
+  height: 100vh;
   width: 100%;
-  margin: 0;
-  padding: 0;
-  background: #FAF7F2;
+  box-sizing: border-box;
+  background: transparent;
   overflow: hidden;
-  gap: 16px;
 }
 
 @media (max-width: 1200px) {
@@ -7760,18 +7763,18 @@ body.el-popup-parent--hidden {
 
 /* 左侧面板：TAB切换 + 用户账户系统 */
 .left-panel {
-  width: 350px;
-  height: calc(100vh - 32px);
-  margin: 16px 0 16px 16px;
+  grid-area: left;
   display: flex;
   flex-direction: column;
   gap: 0;
-  flex-shrink: 0;
-  background: white;
-  border-radius: 12px;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.06);
-  border: 1px solid #e2e8f0;
+  background: var(--glass-level-2-bg);
+  backdrop-filter: var(--glass-level-2-backdrop);
+  border: 1px solid var(--glass-level-2-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--glass-level-2-shadow);
   overflow: hidden;
+  height: 100%;
+  margin: 0;
 }
 
 /* TAB切换区域 */
@@ -7799,7 +7802,7 @@ body.el-popup-parent--hidden {
 /* Tab管理按钮 */
 .prompts-manage-header {
   padding: 12px 16px 6px 16px;
-  border-bottom: 1px solid rgba(226, 232, 240, 0.6);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
   margin: 4px 0;
 }
 
@@ -7809,16 +7812,17 @@ body.el-popup-parent--hidden {
   font-size: 12px;
   height: 28px;
   width: 100%;
-  background: #00B8E6;
+  background: var(--color-nebula-blue);
   border: none;
   color: white;
   font-weight: 500;
+  box-shadow: 0 2px 8px rgba(59, 130, 246, 0.3);
 }
 
 .prompts-manage-btn:hover {
-  background: #0098C3;
+  background: #2563eb;
   transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(0, 184, 230, 0.3);
+  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.5);
 }
 
 .left-tabs {
@@ -7832,10 +7836,10 @@ body.el-popup-parent--hidden {
 }
 
 .left-tabs .el-tabs__header {
-  margin: 0 24px 0 24px;
+  margin: 0 24px 0 40px;
   padding-bottom: 12px;
   background: transparent;
-  border-bottom: 1px solid #e2e8f0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
 }
 
 .left-tabs .el-tabs__content {
@@ -7858,7 +7862,7 @@ body.el-popup-parent--hidden {
 .left-tabs .el-tabs__item {
   font-size: 14px;
   font-weight: 600;
-  color: #64748b;
+  color: var(--text-muted);
   padding: 0 28px;
   height: 40px;
   line-height: 40px;
@@ -7867,15 +7871,14 @@ body.el-popup-parent--hidden {
 }
 
 .left-tabs .el-tabs__item.is-active {
-  color: #00B8E6;
-  background: #00B8E6;
   color: white;
-  box-shadow: 0 4px 12px rgba(0, 184, 230, 0.3);
+  background: var(--color-nebula-blue);
+  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.4);
 }
 
 .left-tabs .el-tabs__item:hover {
-  color: #00B8E6;
-  background: rgba(0, 184, 230, 0.1);
+  color: white;
+  background: rgba(59, 130, 246, 0.2);
 }
 
 .tab-content {
@@ -7943,27 +7946,28 @@ body.el-popup-parent--hidden {
 
 /* 瀑布流提示词卡片样式 */
 .prompt-card-waterfall {
-  background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
+  background: var(--glass-level-2-bg);
+  backdrop-filter: var(--glass-level-2-backdrop);
   border-radius: 8px;
   padding: 0;
   cursor: pointer;
   transition: all 0.3s ease;
-  border: 1px solid rgba(226, 232, 240, 0.8);
+  border: 1px solid var(--glass-level-2-border);
   display: flex;
   flex-direction: column;
   aspect-ratio: 3/4;
   width: 100%;
   min-height: 150px;
   max-height: 200px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+  box-shadow: var(--glass-level-2-shadow);
   overflow: hidden;
 }
 
 .prompt-card-waterfall:hover {
-  background: linear-gradient(135deg, #e3f2fd 0%, #f3e5f5 100%);
-  border-color: #00B8E6;
+  background: var(--glass-level-3-bg);
+  border-color: var(--color-nebula-blue);
   transform: translateY(-4px);
-  box-shadow: 0 8px 24px rgba(0, 184, 230, 0.15);
+  box-shadow: 0 8px 24px rgba(59, 130, 246, 0.2);
 }
 
 .card-image-waterfall {
@@ -7972,7 +7976,7 @@ body.el-popup-parent--hidden {
   border-radius: 0;
   overflow: hidden;
   margin-bottom: 0;
-  background: linear-gradient(135deg, #f5f5f5 0%, #e8f2ff 100%);
+  background: rgba(0, 0, 0, 0.2);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -8007,7 +8011,7 @@ body.el-popup-parent--hidden {
 .card-title-waterfall {
   font-size: 11px;
   font-weight: 600;
-  color: #21232A;
+  color: var(--text-main);
   margin: 0 0 2px 0;
   line-height: 1.2;
   text-align: center;
@@ -8027,9 +8031,10 @@ body.el-popup-parent--hidden {
   justify-content: center;
   align-items: center;
   padding: 10px 12px;
-  background: #ffffff;
-  border-top: 1px solid #e2e8f0;
-  box-shadow: 0 -2px 8px rgba(0, 0, 0, 0.05);
+  background: var(--glass-level-2-bg);
+  backdrop-filter: var(--glass-level-2-backdrop);
+  border-top: 1px solid var(--glass-level-2-border);
+  box-shadow: 0 -2px 8px rgba(0, 0, 0, 0.2);
   z-index: 10;
   overflow-x: auto;
   overflow-y: hidden;
@@ -8078,7 +8083,7 @@ body.el-popup-parent--hidden {
 .card-title {
   font-size: 13px;
   font-weight: 600;
-  color: #333;
+  color: var(--text-main);
   margin: 0 0 4px 0;
   white-space: nowrap;
   overflow: hidden;
@@ -8087,7 +8092,7 @@ body.el-popup-parent--hidden {
 
 .card-text {
   font-size: 11px;
-  color: #666;
+  color: var(--text-muted);
   margin: 0;
   line-height: 1.4;
   display: -webkit-box;
@@ -8112,11 +8117,11 @@ body.el-popup-parent--hidden {
 .empty-prompts {
   text-align: center;
   padding: 40px 20px;
-  color: #666;
+  color: var(--text-muted);
 }
 
 .empty-prompts .el-icon {
-  color: #ccc;
+  color: var(--text-faint);
   margin-bottom: 12px;
 }
 
@@ -8128,8 +8133,9 @@ body.el-popup-parent--hidden {
 /* 添加提示词区域 */
 .add-prompt-section {
   padding: 16px;
-  border-top: 1px solid #f0f0f0;
-  background: #fafafa;
+  border-top: 1px solid var(--glass-level-2-border);
+  background: var(--glass-level-2-bg);
+  backdrop-filter: var(--glass-level-2-backdrop);
 }
 
 .add-prompt-btn {
@@ -8139,26 +8145,30 @@ body.el-popup-parent--hidden {
 }
 
 .control-panel {
-  width: 450px;
-  height: calc(100vh - 32px);
-  margin: 16px 0;
-  background: white;
+  grid-area: control;
+  height: 100%;
+  margin: 0;
+  background: var(--glass-level-2-bg);
+  backdrop-filter: var(--glass-level-2-backdrop);
   padding: 12px;
-  border-radius: 12px;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.06);
-  border: 1px solid #e2e8f0;
+  border-radius: var(--radius-lg);
+  box-shadow: var(--glass-level-2-shadow);
+  border: 1px solid var(--glass-level-2-border);
   overflow-y: auto;
   flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
 }
 
 .result-panel {
-  flex: 1;
-  height: calc(100vh - 32px);
-  margin: 16px 16px 16px 0;
-  background: white;
-  border-radius: 12px;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.06);
-  border: 1px solid #e2e8f0;
+  grid-area: result;
+  height: 100%;
+  margin: 0;
+  background: var(--glass-level-2-bg);
+  backdrop-filter: var(--glass-level-2-backdrop);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--glass-level-2-shadow);
+  border: 1px solid var(--glass-level-2-border);
   overflow: hidden;
   display: flex;
   flex-direction: column;
@@ -8169,15 +8179,15 @@ body.el-popup-parent--hidden {
   align-items: center;
   justify-content: space-between;
   padding: 16px 20px;
-  border-bottom: 1px solid #e2e8f0;
-  background: white;
+  border-bottom: 1px solid var(--glass-level-2-border);
+  background: transparent;
   flex-shrink: 0;
   border-radius: 12px 12px 0 0;
 }
 
 .result-header h2 {
   margin: 0;
-  color: #21232A;
+  color: var(--text-main);
   font-size: 18px;
   font-weight: 700;
   display: flex;

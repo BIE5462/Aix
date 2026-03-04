@@ -1,0 +1,121 @@
+/* ==========================================
+   Conflux Dreamscape - 全局样式
+   ========================================== */
+
+/* 🌌 动态流体背景 - 柔和梦幻版 */
+body {
+  margin: 0;
+  padding: 0;
+  background-color: #f5f5f7;
+  background-image: 
+    radial-gradient(at 10% 10%, rgba(90, 200, 250, 0.25) 0px, transparent 48%),
+    radial-gradient(at 90% 10%, rgba(175, 82, 222, 0.18) 0px, transparent 46%),
+    radial-gradient(at 88% 90%, rgba(255, 159, 10, 0.18) 0px, transparent 42%),
+    radial-gradient(at 8% 88%, rgba(52, 199, 89, 0.14) 0px, transparent 42%);
+  background-attachment: fixed;
+  background-size: cover;
+  color: var(--text-main);
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  overflow-x: hidden;
+  text-shadow: none;
+}
+
+/* 隐藏默认滚动条，使用自定义样式 */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(29, 29, 31, 0.16);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 0, 0, 0.2);
+}
+
+/* 🌟 通用工具类 */
+
+/* 文本渐变 - 更鲜艳 */
+.text-gradient {
+  background: linear-gradient(135deg, #007aff 0%, #5ac8fa 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* 玻璃态卡片通用类 */
+.glass-panel {
+  background: var(--glass-level-2-bg);
+  backdrop-filter: var(--glass-level-2-backdrop);
+  -webkit-backdrop-filter: var(--glass-level-2-backdrop);
+  border: 1px solid var(--glass-level-2-border);
+  box-shadow: var(--glass-level-2-shadow);
+  border-radius: var(--radius-lg);
+}
+
+/* 布局辅助 */
+.flex-center {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.full-screen {
+  width: 100vw;
+  height: 100vh;
+  overflow: hidden;
+}
+
+/* 覆盖 Element Plus 基础变量 */
+:root {
+  --el-color-primary: var(--color-primary);
+  --el-text-color-primary: var(--text-main);
+  --el-text-color-regular: var(--text-muted);
+  --el-bg-color: transparent;
+  --el-border-color: var(--glass-level-2-border);
+  --el-border-color-light: rgba(0, 0, 0, 0.05);
+}
+
+/* Vue Transitions */
+.fade-enter-active,
+.fade-leave-active {
+  transition: opacity 0.3s ease;
+}
+
+.fade-enter-from,
+.fade-leave-to {
+  opacity: 0;
+}
+
+.slide-fade-enter-active {
+  transition: all 0.3s ease-out;
+}
+
+.slide-fade-leave-active {
+  transition: all 0.3s cubic-bezier(1, 0.5, 0.8, 1);
+}
+
+.slide-fade-enter-from,
+.slide-fade-leave-to {
+  transform: translateX(20px);
+  opacity: 0;
+}
+
+.scale-enter-active,
+.scale-leave-active {
+  transition: all 0.3s ease;
+}
+
+.scale-enter-from,
+.scale-leave-to {
+  opacity: 0;
+  transform: scale(0.9);
+}
