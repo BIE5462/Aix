@@ -131,24 +131,33 @@ const handleImageError = (e) => {
 
 <style scoped>
 .work-card {
+  /* 基础玻璃拟态 */
   background: var(--glass-bg);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--glass-border);
+  border-top: 1px solid var(--glass-highlight);
+  border-left: 1px solid var(--glass-highlight);
   border-radius: var(--radius-lg);
   overflow: hidden;
   cursor: pointer;
-  transition: all var(--transition-smooth);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
-  border: 1px solid var(--glass-border);
+  box-shadow: var(--glass-shadow);
   height: fit-content;
   break-inside: avoid;
   margin-bottom: 16px;
+  
+  /* 顺滑交互过渡 */
+  transition: transform 0.4s cubic-bezier(0.25, 0.8, 0.25, 1), 
+              box-shadow 0.4s ease, 
+              background 0.4s ease;
 }
 
 .work-card:hover {
-  transform: translateY(-4px);
-  box-shadow: 0 8px 24px rgba(0, 184, 230, 0.2);
-  border-color: var(--primary-blue-light);
+  /* 优雅的上浮与阴影展现 (避免 Scale 导致的挤压错位) */
+  transform: translateY(-8px);
+  box-shadow: 0 20px 40px -10px rgba(0, 0, 0, 0.4), 
+              0 0 20px rgba(0, 184, 230, 0.2);
+  background: var(--glass-level-2-bg);
 }
 
 /* 封面图 */

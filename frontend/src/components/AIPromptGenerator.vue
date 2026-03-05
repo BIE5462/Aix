@@ -54,6 +54,7 @@
         :disabled="!canGenerate"
         @click="handleGenerate"
         style="flex: 1"
+        class="generate-btn"
       >
         <el-icon v-if="!isGenerating"><MagicStick /></el-icon>
         {{ isGenerating ? '生成中...' : '生成提示词' }}
@@ -414,6 +415,26 @@ onMounted(() => {
   flex-shrink: 0; /* 不收缩 */
 }
 
+.generate-btn {
+  background-color: var(--color-primary);
+  border-color: var(--color-primary);
+  color: white;
+  transition: all 0.3s ease;
+}
+
+.generate-btn:hover {
+  background-color: #f97316;
+  border-color: #f97316;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(251, 146, 60, 0.3);
+}
+
+.generate-btn.is-disabled {
+  background-color: rgba(251, 146, 60, 0.5);
+  border-color: rgba(251, 146, 60, 0.5);
+  opacity: 0.6;
+}
+
 .results-section {
   display: flex;
   flex-direction: column;
@@ -473,10 +494,10 @@ onMounted(() => {
 }
 
 .prompt-card {
-  border: 1px solid #e4e7ed;
+  border: var(--glass-level-1-border);
   border-radius: 8px;
   padding: 12px;
-  background: #fff;
+  background: var(--glass-level-2-bg);
   transition: all 0.3s;
   margin-bottom: 8px; /* 卡片之间的间距 */
 }

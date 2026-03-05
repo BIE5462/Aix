@@ -388,34 +388,44 @@ onMounted(async () => {
   grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
   gap: 20px;
   width: 100%;
+  align-items: start;
 }
 
-/* 作品卡片 */
+/* 娴ｆ粌鎼ч崡锛勫 - 玻璃拟态重构 */
 .work-card {
   position: relative;
-  background: #fff;
-  border-radius: 12px;
+  background: var(--glass-bg);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--glass-border);
+  border-top: 1px solid var(--glass-highlight);
+  border-left: 1px solid var(--glass-highlight);
+  border-radius: var(--radius-lg);
   overflow: hidden;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  box-shadow: var(--glass-shadow);
   cursor: pointer;
-  transition: all 0.3s ease;
+  transition: transform 0.4s cubic-bezier(0.25, 0.8, 0.25, 1), 
+              box-shadow 0.4s ease, 
+              background 0.4s ease;
 }
 
 .work-card:hover {
-  transform: translateY(-4px);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+  transform: translateY(-8px);
+  box-shadow: 0 20px 40px -10px rgba(0, 0, 0, 0.4), 
+              0 0 20px rgba(0, 184, 230, 0.2);
+  background: var(--glass-level-2-bg);
 }
 
 .work-card:hover .work-info-overlay {
   opacity: 1;
 }
 
-/* 作品媒体 */
+/* 娴ｆ粌鎼ф刊鎺嶇秼 */
 .work-media {
   position: relative;
   width: 100%;
   aspect-ratio: 1;
-  background: #f3f4f6;
+  background: transparent;
   overflow: hidden;
 }
 
@@ -425,6 +435,12 @@ onMounted(async () => {
   height: 100%;
   object-fit: cover;
   display: block;
+  transition: transform 0.6s cubic-bezier(0.25, 0.8, 0.25, 1);
+}
+
+.work-card:hover .media-image,
+.work-card:hover .media-video {
+  transform: scale(1.08);
 }
 
 /* 上架状态徽章 */

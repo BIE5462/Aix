@@ -2,7 +2,7 @@
   <img src="image/LOGO.png" alt="变色龙AI" width="200"/>
 </div>
 
-# 变色龙AI图像生成平台 Chameleon AI Image Generation Platform
+# 千海AI图像生成平台 Chameleon AI Image Generation Platform
 
 [English](#english) | [中文](#chinese)
 

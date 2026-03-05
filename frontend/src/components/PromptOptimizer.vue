@@ -715,6 +715,23 @@ onMounted(() => {
 
 .optimize-btn {
   min-width: 160px;
+  background-color: var(--color-primary);
+  border-color: var(--color-primary);
+  color: white;
+  transition: all 0.3s ease;
+}
+
+.optimize-btn:hover {
+  background-color: #f97316;
+  border-color: #f97316;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(251, 146, 60, 0.3);
+}
+
+.optimize-btn.is-disabled {
+  background-color: rgba(251, 146, 60, 0.5);
+  border-color: rgba(251, 146, 60, 0.5);
+  opacity: 0.6;
 }
 
 /* --- 结果区 --- */

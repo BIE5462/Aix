@@ -857,8 +857,8 @@ const cleanupOldData = () => {
 }
 
 .prompt-card {
-  background: white;
-  border: 1px solid #e0e0e0;
+  background: var(--glass-level-2-bg);
+  border: var(--glass-level-1-border);
   border-radius: 12px;
   overflow: visible;
   cursor: pointer;
@@ -916,14 +916,14 @@ const cleanupOldData = () => {
 .card-title {
   font-size: 16px;
   font-weight: 600;
-  color: #333;
+  color: var(--text-main);
   margin: 0 0 8px 0;
   line-height: 1.4;
 }
 
 .card-text {
   font-size: 14px;
-  color: #666;
+  color: var(--text-muted);
   line-height: 1.5;
   margin: 0 0 12px 0;
   display: -webkit-box;
@@ -960,7 +960,7 @@ const cleanupOldData = () => {
 
 .common-prompts-label {
   font-size: 12px;
-  color: #666;
+  color: var(--text-muted);
   margin-bottom: 8px;
 }
 
@@ -1038,7 +1038,7 @@ const cleanupOldData = () => {
   justify-content: center;
   height: 300px;
   text-align: center;
-  color: #666;
+  color: var(--text-muted);
 }
 
 .empty-icon {
@@ -1051,7 +1051,7 @@ const cleanupOldData = () => {
   margin: 0 0 8px 0;
   font-size: 18px;
   font-weight: 500;
-  color: #333;
+  color: var(--text-main);
 }
 
 .empty-state p {

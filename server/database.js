@@ -80,7 +80,10 @@ const initDatabase = async () => {
       { name: 'video_data', def: "JSON NULL COMMENT '视频数据'" },
       { name: 'tags', def: "JSON NULL COMMENT '标签'" },
       { name: 'selected_common_prompts', def: "JSON NULL COMMENT '选中的常用提示词'" },
-      { name: 'selected_reference_images', def: "JSON NULL COMMENT '选中的参考图片'" }
+      { name: 'selected_reference_images', def: "JSON NULL COMMENT '选中的参考图片'" },
+      { name: 'reference_images', def: "JSON NULL COMMENT '参考图片列表'" },
+      { name: 'credits_consumed', def: "INT DEFAULT 0 COMMENT '消耗积分数'" },
+      { name: 'transaction_id', def: "INT NULL COMMENT '关联交易ID'" }
     ];
     for (const col of historyRecordsColumns) {
       try {
