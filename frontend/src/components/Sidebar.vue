@@ -210,17 +210,22 @@ const handleUserAction = (command) => {
 <style scoped>
 .sidebar {
   width: 280px;
-  height: 100vh;
-  background: var(--glass-level-1-bg);
-  backdrop-filter: var(--glass-level-1-backdrop);
-  border-right: 1px solid rgba(0, 0, 0, 0.05);
+  height: calc(100vh - 32px);
+  margin: 16px;
+  background: rgba(249, 255, 234, 0.85);
+  backdrop-filter: var(--glass-blur, blur(20px));
+  -webkit-backdrop-filter: var(--glass-blur, blur(20px));
+  border: 1px solid var(--glass-border, rgba(255, 255, 255, 0.08));
+  border-top: 1px solid var(--glass-highlight, rgba(255, 255, 255, 0.15));
+  border-left: 1px solid var(--glass-highlight, rgba(255, 255, 255, 0.15));
+  border-radius: 24px;
   display: flex;
   flex-direction: column;
   padding: 24px;
   position: relative;
   z-index: 100;
-  transition: all var(--transition-base);
-  box-shadow: 1px 0 20px rgba(0, 0, 0, 0.03);
+  transition: all 0.4s cubic-bezier(0.25, 0.8, 0.25, 1);
+  box-shadow: var(--glass-shadow, 0 8px 32px 0 rgba(0, 0, 0, 0.3));
 }
 
 /* Header */
@@ -302,13 +307,13 @@ const handleUserAction = (command) => {
 }
 
 .nav-item:hover {
-  background: rgba(0, 122, 255, 0.08);
+  background: rgba(251, 146, 60, 0.12);
   color: var(--text-main);
   transform: translateX(4px);
 }
 
 .nav-item.active {
-  background: rgba(0, 122, 255, 0.14);
+  background: rgba(251, 146, 60, 0.18);
   color: var(--color-primary);
 }
 
@@ -322,7 +327,7 @@ const handleUserAction = (command) => {
   background: var(--color-primary);
   border-radius: 0 4px 4px 0;
   transition: height var(--transition-base);
-  box-shadow: 0 0 10px rgba(0, 122, 255, 0.3);
+  box-shadow: 0 0 10px rgba(251, 146, 60, 0.4);
 }
 
 .nav-item.active .active-indicator {
@@ -344,7 +349,7 @@ const handleUserAction = (command) => {
 
 .nav-item.active .nav-icon-wrapper {
   color: var(--color-primary);
-  filter: drop-shadow(0 0 8px rgba(0, 122, 255, 0.35));
+  filter: drop-shadow(0 0 8px rgba(251, 146, 60, 0.45));
 }
 
 .nav-label {
@@ -365,13 +370,13 @@ const handleUserAction = (command) => {
 
 .user-profile-glass {
   border-radius: 16px;
-  background: rgba(255, 255, 255, 0.58);
+  background: rgba(255, 255, 255, 0.85);
   border: 1px solid rgba(255, 255, 255, 0.72);
   transition: all var(--transition-base);
 }
 
 .user-profile-glass:hover {
-  background: rgba(255, 255, 255, 0.82);
+  background: var(--glass-level-2-bg);
   border-color: rgba(255, 255, 255, 0.9);
   transform: translateY(-2px);
   box-shadow: 0 12px 24px rgba(15, 23, 42, 0.12);
@@ -388,8 +393,8 @@ const handleUserAction = (command) => {
 .avatar-ring {
   padding: 2px;
   border-radius: 50%;
-  border: 1px solid rgba(0, 122, 255, 0.55);
-  box-shadow: 0 0 10px rgba(0, 122, 255, 0.2);
+  border: 1px solid rgba(251, 146, 60, 0.6);
+  box-shadow: 0 0 10px rgba(251, 146, 60, 0.25);
 }
 
 .user-details {

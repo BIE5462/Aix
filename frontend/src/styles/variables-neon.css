@@ -1,56 +1,68 @@
 /* ==========================================
-   Conflux Dreamscape - 视觉变量系统
-   Light Glassmorphism + Pastel Gradients
+   设计系统 - Warm Artistic (明亮暖色艺术风)
+   变量定义层 (Tokens)
    ========================================== */
 
 :root {
-  --color-primary: #007aff;
-  --color-secondary: #34c759;
-  --color-accent: #ff9f0a;
-  --color-highlight: #5ac8fa;
-  --color-danger: #ff3b30;
-  
-  --text-main: #1d1d1f;
-  --text-muted: #515154;
-  --text-faint: #86868b;
-  --text-on-primary: #ffffff;
+  /* 核心色彩系统 */
+  --color-primary: #FB923C;        /* 暖橙 */
+  --color-secondary: #FB7185;      /* 珊瑚粉 */
+  --color-accent: #FDBA74;         /* 桃色 */
+  --color-highlight: #FB923C;
+  --color-danger: #F87171;
+  --color-success: #34D399;
+  --color-warning: #FBBF24;
+  --color-info: #FB923C;           /* 信息色改为暖橙 */
 
-  --glass-level-1-bg: rgba(255, 255, 255, 0.6);
-  --glass-level-1-border: rgba(255, 255, 255, 0.72);
-  --glass-level-1-backdrop: blur(24px);
-  --glass-level-1-shadow: 0 8px 28px rgba(15, 23, 42, 0.06);
+  /* 文字颜色 */
+  --text-main: #292524;            /* 深棕色 */
+  --text-muted: #78716C;           /* 中棕色 */
+  --text-faint: #A8A29E;           /* 浅棕色 */
+  --text-on-primary: #FFFFFF;
 
-  --glass-level-2-bg: rgba(255, 255, 255, 0.72);
-  --glass-level-2-border: rgba(255, 255, 255, 0.86);
+  /* 柔和拟态分级 (Soft UI Levels) */
+  /* Level 1: 最薄层，用于背景或大面积区域 */
+  --glass-level-1-bg: rgba(255, 255, 255, 0.7);
+  --glass-level-1-border: rgba(251, 146, 60, 0.1);
+  --glass-level-1-backdrop: blur(15px);
+  --glass-level-1-shadow: 0 2px 12px rgba(251, 146, 60, 0.08);
+
+  /* Level 2: 标准层，用于主要面板 */
+  --glass-level-2-bg: rgba(255, 255, 255, 0.85);
+  --glass-level-2-border: rgba(251, 146, 60, 0.15);
   --glass-level-2-backdrop: blur(20px);
-  --glass-level-2-shadow: 0 10px 30px rgba(15, 23, 42, 0.08);
+  --glass-level-2-shadow: 0 4px 20px rgba(251, 113, 133, 0.12);
 
-  --glass-level-3-bg: rgba(255, 255, 255, 0.88);
-  --glass-level-3-border: rgba(255, 255, 255, 0.96);
-  --glass-level-3-backdrop: blur(32px);
-  --glass-level-3-shadow: 0 20px 48px rgba(15, 23, 42, 0.12);
+  /* Level 3: 最厚层，用于弹窗或悬浮元素 */
+  --glass-level-3-bg: rgba(255, 255, 255, 0.95);
+  --glass-level-3-border: rgba(251, 146, 60, 0.2);
+  --glass-level-3-backdrop: blur(25px);
+  --glass-level-3-shadow: 0 8px 32px rgba(251, 146, 60, 0.15);
 
-  --glow-primary: 0 6px 20px rgba(0, 122, 255, 0.32);
-  --glow-accent: 0 6px 18px rgba(255, 159, 10, 0.28);
-  --border-highlight: 1px solid rgba(255, 255, 255, 0.78);
-  
+  /* 柔和阴影系统 (Soft Shadow System) */
+  --glow-primary: 0 2px 12px rgba(251, 146, 60, 0.15);
+  --glow-accent: 0 2px 12px rgba(253, 186, 116, 0.15);
+  --border-highlight: 1px solid rgba(251, 146, 60, 0.25);
+
+  /* 圆角 */
   --radius-sm: 10px;
-  --radius-md: 14px;
-  --radius-lg: 20px;
+  --radius-md: 16px;
+  --radius-lg: 24px;
   --radius-xl: 32px;
   --radius-full: 9999px;
 
-  /* ⚡ 动效 (Motion) */
+  /* 运动与过渡 (Motion) */
   --ease-out-expo: cubic-bezier(0.19, 1, 0.22, 1);
   --ease-spring: cubic-bezier(0.22, 1, 0.36, 1);
   --transition-base: 300ms var(--ease-out-expo);
   --transition-bounce: 500ms var(--ease-spring);
 
-  --color-nebula-blue: var(--color-highlight);
-  --color-cyber-pink: #ff375f;
-  --glass-bg-light: var(--glass-level-2-bg);
+  /* 语义化映射 (兼容旧变量) */
+  --color-nebula-blue: var(--color-primary);
+  --color-cyber-pink: var(--color-secondary);
+  --glass-bg-light: var(--glass-level-1-bg);
   --glass-shadow: var(--glass-level-2-shadow);
   --glass-border: var(--glass-level-2-border);
-  --bg-primary: transparent;
-  --bg-sidebar: var(--glass-level-1-bg);
+  --bg-primary: #FFF7ED;
+  --bg-sidebar: linear-gradient(180deg, rgba(255, 247, 237, 0.98) 0%, rgba(255, 251, 245, 0.95) 100%);
 }
