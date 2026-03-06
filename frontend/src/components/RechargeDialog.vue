@@ -289,7 +289,7 @@ const handleRecharge = async () => {
 
     // 创建充值订单
     const response = await axios.post(
-      'http://localhost:8088/api/credits/recharge/create',
+      '/api/credits/recharge/create',
       {
         amount: amount,
         payment_method: paymentMethod.value

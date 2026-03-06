@@ -156,7 +156,7 @@ const fetchUserCredits = async () => {
 
   try {
     const token = localStorage.getItem('token')
-    const response = await axios.get('http://localhost:8088/api/credits/balance', {
+    const response = await axios.get('/api/credits/balance', {
       headers: {
         'Authorization': `Bearer ${token}`
       }

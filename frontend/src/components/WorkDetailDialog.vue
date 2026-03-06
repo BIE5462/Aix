@@ -91,6 +91,18 @@
           {{ localLiked ? '已点赞' : '点赞' }}
         </el-button>
         
+        <!-- 下载按钮 -->
+        <el-button
+          size="large"
+          type="success"
+          class="download-button"
+          :loading="downloading"
+          @click="handleDownload"
+        >
+          <el-icon class="button-icon"><Download /></el-icon>
+          {{ downloading ? '下载中...' : '下载原图' }}
+        </el-button>
+
         <!-- 发布状态 -->
         <div class="publish-section">
           <div class="publish-status-row">
@@ -142,7 +154,7 @@
 <script setup>
 import { ref, computed, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { View, Star, StarFilled, DocumentCopy, Top, Bottom } from '@element-plus/icons-vue'
+import { View, Star, StarFilled, DocumentCopy, Top, Bottom, Download } from '@element-plus/icons-vue'
 import { likeWork, unlikeWork, unpublishWork, republishWork, deleteWorkPermanently } from '../api/worksApi'
 
 const props = defineProps({
@@ -167,6 +179,7 @@ const dialogVisible = computed({
 // 本地点赞状态
 const localLiked = ref(false)
 const localLikesCount = ref(0)
+const downloading = ref(false)
 
 // 监听 work 变化，更新本地状态
 watch(() => props.work, (newWork) => {
@@ -300,6 +313,39 @@ const handleDeletePermanently = async () => {
       console.error('永久删除失败:', error)
       ElMessage.error(error.response?.data?.error || error.response?.data?.message || '永久删除失败')
     }
+  }
+}
+
+// 下载作品
+const handleDownload = async () => {
+  if (!props.work?.cover_url) return
+
+  downloading.value = true
+  try {
+    const isVideo = props.work.content_type === 'video'
+    const ext = isVideo ? 'mp4' : 'png'
+    const filename = `${props.work.title || 'work'}-${props.work.id}.${ext}`
+
+    // 通过 fetch 下载 blob，避免跨域问题
+    const response = await fetch(props.work.cover_url)
+    const blob = await response.blob()
+    const url = URL.createObjectURL(blob)
+
+    const link = document.createElement('a')
+    link.href = url
+    link.download = filename
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    URL.revokeObjectURL(url)
+
+    ElMessage.success('下载成功')
+  } catch (error) {
+    console.error('下载失败:', error)
+    // 降级：直接打开链接
+    window.open(props.work.cover_url, '_blank')
+  } finally {
+    downloading.value = false
   }
 }
 
@@ -460,6 +506,20 @@ const handleClose = () => {
 
 .like-button:active {
   transform: scale(0.95);
+}
+
+/* 下载按钮 */
+.download-button {
+  width: 100%;
+  height: 48px;
+  font-size: 15px;
+  font-weight: 600;
+  transition: all 0.3s ease;
+}
+
+.download-button .button-icon {
+  font-size: 18px;
+  margin-right: 8px;
 }
 
 /* 发布状态区域 */

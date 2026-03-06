@@ -40,7 +40,8 @@ export const uploadToOSS = async (file) => {
     const formData = new FormData()
     formData.append('file', file)
     
-    const response = await fetch('http://localhost:8088/upload-to-oss', {
+    // 使用相对路径，通过Nginx代理转发
+    const response = await fetch('/upload-to-oss', {
       method: 'POST',
       body: formData
     })

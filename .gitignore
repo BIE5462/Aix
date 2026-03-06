@@ -55,19 +55,6 @@ backend/config/secrets.js
 !README.md
 
 # Test images and examples
-*.png
-*.jpg
-*.jpeg
-*.gif
-!public/**/*.png
-!public/**/*.jpg
-!public/**/*.jpeg
-!public/**/*.gif
-!image/**/*.png
-!image/**/*.jpg
-!image/**/*.jpeg
-!image/**/*.gif
-
 # Claude Code settings
 .claude/
 .claude/**
@@ -78,10 +65,6 @@ backend/config/secrets.js
 *.backup
 *.fixed
 
-# Database files and migrations
-server/migrations/*.sql
-server/*.sql
-!server/migrations/.gitkeep
 
 # Test scripts and utilities
 server/test*.js
@@ -96,3 +79,16 @@ server/run-*.js
 
 # Build artifacts
 *.log
+
+# Nginx
+nginx/*.exe
+nginx/logs/
+nginx/temp/
+nginx/client_body_temp/
+nginx/proxy_temp/
+nginx/fastcgi_temp/
+nginx/uwsgi_temp/
+nginx/scgi_temp/
+
+# Test Outputs
+server/test-output/

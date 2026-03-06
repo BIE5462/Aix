@@ -2,7 +2,7 @@ import axios from 'axios'
 import { clearAllUserCache } from '../utils/cacheUtils'
 
 // API配置
-const API_BASE_URL = 'http://localhost:8088/api'
+const API_BASE_URL = '/api'
 
 // 创建axios实例
 const apiClient = axios.create({

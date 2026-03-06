@@ -7121,7 +7121,7 @@ const fetchUserCredits = async () => {
 
   try {
     const token = localStorage.getItem('token')
-    const response = await fetch('http://localhost:8088/api/credits/balance', {
+    const response = await fetch('/api/credits/balance', {
       headers: {
         'Authorization': `Bearer ${token}`
       }
