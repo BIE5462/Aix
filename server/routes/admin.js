@@ -4,30 +4,7 @@ const { getConnection, aiModelService } = require('../database');
 const authService = require('../authService');
 const creditService = require('../services/creditService');
 const modelPricingService = require('../services/modelPricingService');
-
-// 管理员认证中间件
-const requireAdmin = async (req, res, next) => {
-  try {
-    const authHeader = req.headers['authorization'];
-    const token = authHeader && authHeader.split(' ')[1];
-    
-    if (!token) {
-      return res.status(401).json({ error: '访问令牌缺失' });
-    }
-    
-    const result = await authService.verifyToken(token);
-    
-    // 检查是否为管理员
-    if (!result.user.is_admin) {
-      return res.status(403).json({ error: '需要管理员权限' });
-    }
-    
-    req.user = result.user;
-    next();
-  } catch (error) {
-    return res.status(403).json({ error: '无效的访问令牌' });
-  }
-};
+const { requireAdmin } = require('../middleware/auth');
 
 // 管理员登录
 router.post('/login', async (req, res) => {

@@ -1,19 +1,7 @@
-const mysql = require('mysql2/promise');
-const config = require('./config');
+﻿const { getPool, query, execute, withTransaction } = require('./db');
 const imageCacheService = require('./services/imageCacheService');
 
-// 创建数据库连接池
-const pool = mysql.createPool({
-  host: config.database.host,
-  port: config.database.port,
-  user: config.database.user,
-  password: config.database.password,
-  database: config.database.database,
-  waitForConnections: true,
-  connectionLimit: 10,
-  queueLimit: 0,
-  connectTimeout: 10000
-});
+const pool = getPool();
 
 // 初始化数据库表
 const initDatabase = async () => {
@@ -969,9 +957,14 @@ const getConnection = () => pool;
 
 module.exports = {
   pool,
+  getPool,
   getConnection,
+  query,
+  execute,
+  withTransaction,
   initDatabase,
   historyService,
   referenceImageService,
   aiModelService
 };
+

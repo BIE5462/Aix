@@ -1,29 +1,11 @@
 const express = require('express');
 const router = express.Router();
 const { getConnection } = require('../database');
-const authService = require('../authService');
 const aiPromptService = require('../services/aiPromptService');
-
-// 用户认证中间件
-const requireAuth = async (req, res, next) => {
-  try {
-    const authHeader = req.headers['authorization'];
-    const token = authHeader && authHeader.split(' ')[1];
-
-    if (!token) {
-      return res.status(401).json({ error: '访问令牌缺失' });
-    }
-
-    const result = await authService.verifyToken(token);
-    req.user = result.user;
-    next();
-  } catch (error) {
-    return res.status(403).json({ error: '无效的访问令牌' });
-  }
-};
+const { authenticateToken } = require('../middleware/auth');
 
 // 生成提示词
-router.post('/generate', requireAuth, async (req, res) => {
+router.post('/generate', authenticateToken, async (req, res) => {
   try {
     const { model_id, user_input, count = 10, conversation_history = [] } = req.body;
     const userId = req.user.id; // 修正：应该是 id 而不是 userId
@@ -112,7 +94,7 @@ router.post('/generate', requireAuth, async (req, res) => {
 });
 
 // 获取AI生成历史记录列表
-router.get('/history', requireAuth, async (req, res) => {
+router.get('/history', authenticateToken, async (req, res) => {
   try {
     const userId = req.user.id; // 修正：应该是 id 而不是 userId
     const { page = 1, pageSize = 20 } = req.query;
@@ -152,7 +134,7 @@ router.get('/history', requireAuth, async (req, res) => {
 });
 
 // 获取单条AI生成历史详情
-router.get('/history/:id', requireAuth, async (req, res) => {
+router.get('/history/:id', authenticateToken, async (req, res) => {
   try {
     const { id } = req.params;
     const userId = req.user.id; // 修正：应该是 id 而不是 userId
@@ -197,7 +179,7 @@ router.get('/history/:id', requireAuth, async (req, res) => {
 });
 
 // 删除AI生成历史记录
-router.delete('/history/:id', requireAuth, async (req, res) => {
+router.delete('/history/:id', authenticateToken, async (req, res) => {
   try {
     const { id } = req.params;
     const userId = req.user.id; // 修正：应该是 id 而不是 userId
@@ -239,7 +221,7 @@ router.get('/templates', async (req, res) => {
 });
 
 // 优化提示词
-router.post('/optimize', requireAuth, async (req, res) => {
+router.post('/optimize', authenticateToken, async (req, res) => {
   try {
     const { model_id, template_id, original_prompt } = req.body;
 
@@ -271,7 +253,7 @@ router.post('/optimize', requireAuth, async (req, res) => {
 });
 
 // 迭代优化提示词
-router.post('/iterate', requireAuth, async (req, res) => {
+router.post('/iterate', authenticateToken, async (req, res) => {
   try {
     const { model_id, template_id, last_optimized_prompt, iterate_input } = req.body;
 

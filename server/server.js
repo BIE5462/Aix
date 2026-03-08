@@ -1,4 +1,4 @@
-const express = require('express');
+﻿const express = require('express');
 const cors = require('cors');
 const multer = require('multer');
 const path = require('path');
@@ -11,11 +11,11 @@ const redisService = require('./redis');
 const imageCacheService = require('./services/imageCacheService');
 const ossRetryService = require('./services/ossRetryService');
 const apiService = require('./apiService');
-const authService = require('./authService');
 const referenceImageOSS = require('./services/referenceImageOSS');
 const userDataService = require('./userDataService');
 const creditService = require('./services/creditService');
 const modelPricingService = require('./services/modelPricingService');
+const { authenticateToken } = require('./middleware/auth');
 
 // 导入新的服务
 const ReferenceImageService = require('./services/referenceImageService');
@@ -27,6 +27,7 @@ const promptRoutes = require('./routes/prompts');
 const adminRoutes = require('./routes/admin');
 const videoRoutes = require('./routes/video');
 const referenceImageRoutes = require('./routes/referenceImages');
+const referenceImageCategoriesCompatRoutes = require('./routes/referenceImageCategoriesCompat');
 const worksRoutes = require('./routes/works');
 const creditsRoutes = require('./routes/credits');
 const textModelsRoutes = require('./routes/textModels');
@@ -44,41 +45,6 @@ app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
 // 静态文件服务
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
-
-// 认证中间件
-const authenticateToken = async (req, res, next) => {
-  try {
-    const authHeader = req.headers['authorization'];
-    const token = authHeader && authHeader.split(' ')[1]; // Bearer TOKEN
-    
-    if (!token) {
-      return res.status(401).json({ error: '访问令牌缺失' });
-    }
-    
-    const result = await authService.verifyToken(token);
-    req.user = result.user;
-    next();
-  } catch (error) {
-    return res.status(403).json({ error: '无效的访问令牌' });
-  }
-};
-
-// 可选认证中间件（允许未登录用户访问）
-const optionalAuth = async (req, res, next) => {
-  try {
-    const authHeader = req.headers['authorization'];
-    const token = authHeader && authHeader.split(' ')[1];
-    
-    if (token) {
-      const result = await authService.verifyToken(token);
-      req.user = result.user;
-    }
-    next();
-  } catch (error) {
-    // 忽略认证错误，继续处理请求
-    next();
-  }
-};
 
 // 配置multer用于文件上传（使用内存存储，直接上传到OSS）
 const upload = multer({ 
@@ -182,6 +148,7 @@ app.use('/api/admin', adminRoutes);
 app.use('/api/video', videoRoutes);
 app.use('/api/video-models', videoModelsRoutes);
 app.use('/api/reference-images', authenticateToken, referenceImageRoutes);
+app.use('/api/reference-image-categories', authenticateToken, referenceImageCategoriesCompatRoutes);
 app.use('/api/works', worksRoutes);
 app.use('/api/credits', creditsRoutes);
 app.use('/api/text-models', textModelsRoutes);
@@ -596,17 +563,6 @@ app.delete('/api/history', authenticateToken, async (req, res) => {
 
 // 参考图相关API
 
-// 获取参考图列表 - 需要认证
-app.get('/api/reference-images', authenticateToken, async (req, res) => {
-  try {
-    const result = await userDataService.referenceImages.getUserReferenceImages(req.user.id);
-    res.json(result.images);
-  } catch (error) {
-    console.error('获取参考图列表错误:', error);
-    res.status(500).json({ error: '服务器内部错误' });
-  }
-});
-
 // 代理OSS图片请求，解决CORS问题
 // 注意：这个端点不需要认证，因为img标签无法添加Authorization头
 // 但我们限制只能代理特定的OSS域名，确保安全性
@@ -663,149 +619,6 @@ app.get('/api/proxy-image', async (req, res) => {
   }
 });
 
-// 添加参考图（支持OSS）- 需要认证
-app.post('/api/reference-images', authenticateToken, upload.array('images', 10), async (req, res) => {
-  try {
-    const files = req.files;
-    const { categoryId, is_prompt_reference } = req.body; // 获取分类ID和是否为临时参考图参数
-    
-    if (!files || files.length === 0) {
-      return res.status(400).json({ error: '请选择要上传的图片' });
-    }
-
-    // 如果指定了分类ID，验证分类是否存在且属于当前用户
-    if (categoryId && categoryId !== '') {
-      const connection = await getConnection();
-      const [category] = await connection.execute(
-        'SELECT id FROM reference_image_categories WHERE id = ? AND user_id = ?',
-        [categoryId, req.user.id]
-      );
-      
-      if (category.length === 0) {
-        return res.status(404).json({ error: '指定的分类不存在' });
-      }
-    }
-
-    // 验证文件格式和大小
-    const validFiles = [];
-    const errors = [];
-
-    for (const file of files) {
-      if (!referenceImageOSS.isSupportedImageFormat(file.originalname)) {
-        errors.push(`${file.originalname}: 不支持的图片格式`);
-        continue;
-      }
-      
-      if (file.size > referenceImageOSS.getMaxFileSize()) {
-        errors.push(`${file.originalname}: 文件大小超过10MB限制`);
-        continue;
-      }
-      
-      validFiles.push({
-        buffer: file.buffer,
-        fileName: file.originalname
-      });
-    }
-
-    if (validFiles.length === 0) {
-      return res.status(400).json({ 
-        error: '没有有效的图片文件',
-        details: errors
-      });
-    }
-
-    // 上传到OSS
-    const uploadResult = await referenceImageOSS.uploadMultipleReferenceImages(
-      validFiles, 
-      req.user.id,
-      {
-        compress: true,
-        maxWidth: 1200,
-        quality: 0.85,
-        generateThumbnail: true
-      }
-    );
-
-    if (!uploadResult.success) {
-      return res.status(500).json({ 
-        error: '图片上传失败',
-        details: uploadResult.errors
-      });
-    }
-
-    // 保存到数据库
-    const results = [];
-    for (const result of uploadResult.results) {
-      const imageData = {
-        filename: result.key.split('/').pop(),
-        originalName: result.originalName,
-        filePath: result.key,
-        fileSize: result.originalSize,
-        mimeType: referenceImageOSS.getMimeType(path.extname(result.originalName)),
-        ossUrl: result.url,
-        ossKey: result.key,
-        ossThumbnailUrl: result.thumbnailUrl,
-        ossThumbnailKey: result.thumbnailKey,
-        compressedSize: result.compressedSize
-      };
-
-      const dbResult = await userDataService.referenceImages.addReferenceImage(
-        req.user.id,
-        imageData,
-        categoryId,
-        is_prompt_reference === '1' ? 1 : 0  // 传入是否为临时参考图标记
-      );
-      results.push(dbResult.image);
-    }
-    
-    res.json({
-      message: `成功添加${results.length}张参考图`,
-      images: results,
-      summary: {
-        total: files.length,
-        success: results.length,
-        failed: errors.length + uploadResult.errors.length,
-        errors: [...errors, ...uploadResult.errors.map(e => e.error)]
-      }
-    });
-  } catch (error) {
-    console.error('添加参考图错误:', error);
-    res.status(500).json({ error: '服务器内部错误' });
-  }
-});
-
-// 删除参考图（支持OSS）- 需要认证
-app.delete('/api/reference-images/:id', authenticateToken, async (req, res) => {
-  try {
-    const { id } = req.params;
-    
-    // 删除数据库记录并获取OSS key
-    const deleteResult = await userDataService.referenceImages.deleteReferenceImage(req.user.id, id);
-    
-    // 删除OSS文件
-    if (deleteResult.ossKey) {
-      try {
-        await referenceImageOSS.deleteReferenceImage(deleteResult.ossKey, deleteResult.ossThumbnailKey);
-      } catch (ossError) {
-        console.warn('OSS文件删除失败，但数据库记录已删除:', ossError.message);
-        // OSS删除失败不影响整体删除操作
-      }
-    }
-    
-    res.json({ 
-      success: true, 
-      message: '参考图删除成功' 
-    });
-  } catch (error) {
-    console.error('删除参考图错误:', error);
-    if (error.message === '参考图不存在或无权限删除') {
-      res.status(404).json({ error: error.message });
-    } else {
-      res.status(500).json({ error: error.message || '服务器内部错误' });
-    }
-  }
-});
-
 // 代理下载图片接口 - 避免CORS问题
 app.post('/api/download-image', authenticateToken, async (req, res) => {
   try {
@@ -857,314 +670,6 @@ app.post('/api/download-image', authenticateToken, async (req, res) => {
   }
 });
 
-// 批量删除参考图（支持OSS）- 需要认证
-app.delete('/api/reference-images/batch', authenticateToken, async (req, res) => {
-  try {
-    const { imageIds } = req.body;
-    
-    if (!imageIds || !Array.isArray(imageIds) || imageIds.length === 0) {
-      return res.status(400).json({ error: '请提供要删除的图片ID列表' });
-    }
-    
-    // 删除数据库记录并获取OSS keys
-    const deleteResult = await userDataService.referenceImages.deleteMultipleReferenceImages(req.user.id, imageIds);
-    
-    // 删除OSS文件
-    if (deleteResult.ossKeys.length > 0) {
-      const allKeys = [...deleteResult.ossKeys, ...deleteResult.ossThumbnailKeys];
-      await referenceImageOSS.deleteMultipleReferenceImages(allKeys);
-    }
-    
-    res.json({ 
-      success: true, 
-      message: `成功删除${deleteResult.deletedCount}张参考图`,
-      deletedCount: deleteResult.deletedCount
-    });
-  } catch (error) {
-    console.error('批量删除参考图错误:', error);
-    res.status(500).json({ error: '服务器内部错误' });
-  }
-});
-
-// 参考图分类相关API
-
-// 获取用户的分类列表 - 需要认证
-app.get('/api/reference-image-categories', authenticateToken, async (req, res) => {
-  try {
-    const connection = await getConnection();
-
-    // 排除 user-upload 分类，这是系统内部使用的分类，不应该在常用参考图中显示
-    const [categories] = await connection.execute(
-      'SELECT id, name, created_at FROM reference_image_categories WHERE user_id = ? AND name != ? ORDER BY created_at DESC',
-      [req.user.id, 'user-upload']
-    );
-
-    res.json(categories);
-  } catch (error) {
-    console.error('获取分类列表错误:', error);
-    res.status(500).json({ error: '服务器内部错误' });
-  }
-});
-
-// 创建新分类 - 需要认证
-app.post('/api/reference-image-categories', authenticateToken, async (req, res) => {
-  try {
-    const { name } = req.body;
-
-    if (!name || !name.trim()) {
-      return res.status(400).json({ error: '分类名称不能为空' });
-    }
-
-    // 禁止创建名为 user-upload 的分类，这是系统保留名称
-    if (name.trim().toLowerCase() === 'user-upload') {
-      return res.status(400).json({ error: 'user-upload 是系统保留分类名称，请使用其他名称' });
-    }
-
-    const connection = await getConnection();
-
-    // 检查分类名称是否已存在
-    const [existing] = await connection.execute(
-      'SELECT id FROM reference_image_categories WHERE user_id = ? AND name = ?',
-      [req.user.id, name.trim()]
-    );
-
-    if (existing.length > 0) {
-      return res.status(400).json({ error: '分类名称已存在' });
-    }
-
-    // 创建新分类
-    const [result] = await connection.execute(
-      'INSERT INTO reference_image_categories (user_id, name) VALUES (?, ?)',
-      [req.user.id, name.trim()]
-    );
-
-    res.status(201).json({
-      id: result.insertId,
-      name: name.trim(),
-      created_at: new Date().toISOString()
-    });
-  } catch (error) {
-    console.error('创建分类错误:', error);
-    res.status(500).json({ error: '服务器内部错误' });
-  }
-});
-
-// 删除分类 - 需要认证
-app.delete('/api/reference-image-categories/:id', authenticateToken, async (req, res) => {
-  try {
-    const { id } = req.params;
-    
-    const connection = await getConnection();
-    
-    // 检查分类是否存在且属于当前用户
-    const [category] = await connection.execute(
-      'SELECT id FROM reference_image_categories WHERE id = ? AND user_id = ?',
-      [id, req.user.id]
-    );
-    
-    if (category.length === 0) {
-      return res.status(404).json({ error: '分类不存在' });
-    }
-    
-    // 将分类中的图片移动到默认分类（category_id设为NULL）
-    await connection.execute(
-      'UPDATE reference_images SET category_id = NULL WHERE category_id = ? AND user_id = ?',
-      [id, req.user.id]
-    );
-    
-    // 删除分类
-    await connection.execute(
-      'DELETE FROM reference_image_categories WHERE id = ? AND user_id = ?',
-      [id, req.user.id]
-    );
-    
-    res.json({ success: true, message: '分类删除成功' });
-  } catch (error) {
-    console.error('删除分类错误:', error);
-    res.status(500).json({ error: '服务器内部错误' });
-  }
-});
-
-// 更新分类名称 - 需要认证
-app.put('/api/reference-image-categories/:id', authenticateToken, async (req, res) => {
-  try {
-    const { id } = req.params;
-    const { name } = req.body;
-
-    if (!name || !name.trim()) {
-      return res.status(400).json({ error: '分类名称不能为空' });
-    }
-
-    // 禁止将分类重命名为 user-upload，这是系统保留名称
-    if (name.trim().toLowerCase() === 'user-upload') {
-      return res.status(400).json({ error: 'user-upload 是系统保留分类名称，请使用其他名称' });
-    }
-
-    const connection = await getConnection();
-
-    // 检查分类是否存在且属于当前用户
-    const [category] = await connection.execute(
-      'SELECT id FROM reference_image_categories WHERE id = ? AND user_id = ?',
-      [id, req.user.id]
-    );
-
-    if (category.length === 0) {
-      return res.status(404).json({ error: '分类不存在' });
-    }
-
-    // 检查新名称是否已存在
-    const [existing] = await connection.execute(
-      'SELECT id FROM reference_image_categories WHERE user_id = ? AND name = ? AND id != ?',
-      [req.user.id, name.trim(), id]
-    );
-
-    if (existing.length > 0) {
-      return res.status(400).json({ error: '分类名称已存在' });
-    }
-
-    // 更新分类名称
-    await connection.execute(
-      'UPDATE reference_image_categories SET name = ? WHERE id = ? AND user_id = ?',
-      [name.trim(), id, req.user.id]
-    );
-
-    res.json({ success: true, message: '分类更新成功' });
-  } catch (error) {
-    console.error('更新分类错误:', error);
-    res.status(500).json({ error: '服务器内部错误' });
-  }
-});
-
-// 批量移动图片到分类 - 需要认证
-app.post('/api/reference-images/move-to-category', authenticateToken, async (req, res) => {
-  try {
-    const { imageIds, categoryId } = req.body;
-    
-    if (!imageIds || !Array.isArray(imageIds) || imageIds.length === 0) {
-      return res.status(400).json({ error: '请选择要移动的图片' });
-    }
-    
-    const connection = await getConnection();
-    
-    // 如果指定了分类ID，验证分类是否存在且属于当前用户
-    if (categoryId !== null && categoryId !== undefined) {
-      const [category] = await connection.execute(
-        'SELECT id FROM reference_image_categories WHERE id = ? AND user_id = ?',
-        [categoryId, req.user.id]
-      );
-      
-      if (category.length === 0) {
-        return res.status(404).json({ error: '目标分类不存在' });
-      }
-    }
-    
-    // 验证所有图片都属于当前用户，并检查是否已在目标分类中
-    const placeholders = imageIds.map(() => '?').join(',');
-    const [images] = await connection.execute(
-      `SELECT id, category_id FROM reference_images WHERE id IN (${placeholders}) AND user_id = ?`,
-      [...imageIds, req.user.id]
-    );
-    
-    if (images.length !== imageIds.length) {
-      return res.status(403).json({ error: '部分图片不存在或无权限操作' });
-    }
-    
-    // 过滤掉已经在目标分类中的图片（排重）
-    const imagesToUpdate = images.filter(img => img.category_id !== categoryId);
-    const duplicateCount = images.length - imagesToUpdate.length;
-    
-    if (imagesToUpdate.length === 0) {
-      return res.json({ 
-        success: true, 
-        message: duplicateCount > 0 ? `所有图片已在目标分类中，无需重复添加` : '没有图片需要移动',
-        affectedRows: 0,
-        duplicateCount: duplicateCount
-      });
-    }
-    
-    // 批量更新图片的分类
-    const updatePlaceholders = imagesToUpdate.map(() => '?').join(',');
-    const updateResult = await connection.execute(
-      'UPDATE reference_images SET category_id = ? WHERE id IN (' + updatePlaceholders + ') AND user_id = ?',
-      [categoryId, ...imagesToUpdate.map(img => img.id), req.user.id]
-    );
-    
-    let message = `成功移动 ${updateResult[0].affectedRows} 张图片`;
-    if (duplicateCount > 0) {
-      message += `，${duplicateCount} 张图片已在目标分类中（已忽略）`;
-    }
-    
-    res.json({ 
-      success: true, 
-      message: message,
-      affectedRows: updateResult[0].affectedRows,
-      duplicateCount: duplicateCount
-    });
-  } catch (error) {
-    console.error('批量移动图片错误:', error);
-    res.status(500).json({ error: '服务器内部错误' });
-  }
-});
-
-// 批量移出分类 - 将图片从分类中移除
-app.post('/api/reference-images/remove-from-category', authenticateToken, async (req, res) => {
-  try {
-    const { imageIds } = req.body;
-    
-    if (!imageIds || !Array.isArray(imageIds) || imageIds.length === 0) {
-      return res.status(400).json({ error: '请选择要移出的图片' });
-    }
-    
-    const connection = await getConnection();
-    
-    // 验证所有图片都属于当前用户
-    const placeholders = imageIds.map(() => '?').join(',');
-    const [images] = await connection.execute(
-      `SELECT id, category_id FROM reference_images WHERE id IN (${placeholders}) AND user_id = ?`,
-      [...imageIds, req.user.id]
-    );
-    
-    if (images.length !== imageIds.length) {
-      return res.status(403).json({ error: '部分图片不存在或无权限操作' });
-    }
-    
-    // 过滤掉没有分类的图片
-    const imagesToUpdate = images.filter(img => img.category_id !== null);
-    const noCategoryCount = images.length - imagesToUpdate.length;
-    
-    if (imagesToUpdate.length === 0) {
-      return res.json({ 
-        success: true, 
-        message: noCategoryCount > 0 ? `所有图片都没有分类，无需移出` : '没有图片需要移出',
-        affectedRows: 0,
-        noCategoryCount: noCategoryCount
-      });
-    }
-    
-    // 批量移除图片的分类
-    const updatePlaceholders = imagesToUpdate.map(() => '?').join(',');
-    const updateResult = await connection.execute(
-      'UPDATE reference_images SET category_id = NULL WHERE id IN (' + updatePlaceholders + ') AND user_id = ?',
-      [...imagesToUpdate.map(img => img.id), req.user.id]
-    );
-    
-    let message = `成功移出 ${updateResult[0].affectedRows} 张图片`;
-    if (noCategoryCount > 0) {
-      message += `，${noCategoryCount} 张图片本来就没有分类`;
-    }
-    
-    res.json({ 
-      success: true, 
-      message: message,
-      affectedRows: updateResult[0].affectedRows,
-      noCategoryCount: noCategoryCount
-    });
-  } catch (error) {
-    console.error('批量移出分类错误:', error);
-    res.status(500).json({ error: '服务器内部错误' });
-  }
-});
-
 // 错误处理中间件
 app.use((error, req, res, next) => {
   console.error('服务器错误:', error);
@@ -1200,3 +705,5 @@ process.on('SIGTERM', async () => {
 });
 
 startServer();
+
+

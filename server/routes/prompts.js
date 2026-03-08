@@ -1,8 +1,7 @@
-const express = require('express');
+﻿const express = require('express');
 const multer = require('multer');
 const router = express.Router();
-const mysql = require('mysql2/promise');
-const config = require('../config');
+const { getPool } = require('../db');
 const ossManager = require('../utils/ossManager');
 const { authenticateToken } = require('../middleware/auth');
 const imageCacheService = require('../services/imageCacheService');
@@ -23,10 +22,7 @@ const upload = multer({
   }
 });
 
-// 创建数据库连接
-const createConnection = () => {
-  return mysql.createConnection(config.database);
-};
+const db = getPool();
 
 /**
  * 获取用户的提示词列表
@@ -34,7 +30,7 @@ const createConnection = () => {
  */
 router.get('/', authenticateToken, async (req, res) => {
   try {
-    const userId = req.user.userId || req.user.id;
+    const userId = req.user.id;
 
     if (!userId) {
       return res.status(401).json({
@@ -54,7 +50,7 @@ router.get('/', authenticateToken, async (req, res) => {
     }
 
     // 缓存未命中，从数据库查询
-    const connection = await createConnection();
+    const connection = db;
 
     const [rows] = await connection.execute(
       `SELECT p.id, p.user_id, p.name as title, p.content, p.created_at, p.updated_at,
@@ -71,7 +67,6 @@ router.get('/', authenticateToken, async (req, res) => {
        ORDER BY p.created_at DESC`,
       [userId]
     );
-    await connection.end();
 
     // 缓存结果
     await imageCacheService.cacheUserCommonPrompts(userId, rows);
@@ -108,7 +103,7 @@ router.post('/', authenticateToken, upload.single('referenceImage'), async (req,
       generateQuantity,
       modelId
     } = req.body;
-    const userId = req.user.userId || req.user.id;
+    const userId = req.user.id;
 
     if (!title || !content) {
       return res.status(400).json({
@@ -133,7 +128,7 @@ router.post('/', authenticateToken, upload.single('referenceImage'), async (req,
         );
         
         // 保存图片信息到reference_images表
-        const connection = await createConnection();
+        const connection = db;
         const [imageResult] = await connection.execute(
           'INSERT INTO reference_images (user_id, name, url, filename, original_name, file_path, file_size, mime_type, oss_url, oss_key, is_prompt_reference) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
           [
@@ -151,7 +146,6 @@ router.post('/', authenticateToken, upload.single('referenceImage'), async (req,
           ]
         );
         referenceImageId = imageResult.insertId;
-        await connection.end();
       } catch (uploadError) {
         console.error('图片上传失败:', uploadError);
         return res.status(500).json({
@@ -163,7 +157,7 @@ router.post('/', authenticateToken, upload.single('referenceImage'), async (req,
     // 如果有OSS URL（通过前端上传到OSS后传递的URL），直接保存到reference_images表
     else if (referenceImageUrl) {
       try {
-        const connection = await createConnection();
+        const connection = db;
         const [imageResult] = await connection.execute(
           'INSERT INTO reference_images (user_id, name, url, filename, original_name, file_path, file_size, mime_type, oss_url, is_prompt_reference) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
           [
@@ -180,7 +174,6 @@ router.post('/', authenticateToken, upload.single('referenceImage'), async (req,
           ]
         );
         referenceImageId = imageResult.insertId;
-        await connection.end();
       } catch (urlError) {
         console.error('保存OSS URL失败:', urlError);
         return res.status(500).json({
@@ -190,7 +183,7 @@ router.post('/', authenticateToken, upload.single('referenceImage'), async (req,
       }
     }
 
-    const connection = await createConnection();
+    const connection = db;
 
     // 插入提示词记录，优先使用reference_image_id
     const [result] = await connection.execute(
@@ -211,7 +204,6 @@ router.post('/', authenticateToken, upload.single('referenceImage'), async (req,
         modelId || null
       ]
     );
-    await connection.end();
 
     // 清除提示词缓存
     await imageCacheService.clearPromptsCache(userId);
@@ -266,7 +258,7 @@ router.put('/:id', authenticateToken, upload.single('referenceImage'), async (re
       modelId,
       referenceImageUrl
     } = req.body;
-    const userId = req.user.userId || req.user.id;
+    const userId = req.user.id;
 
     console.log('[提示词更新] 收到更新请求:', {
       id,
@@ -283,7 +275,7 @@ router.put('/:id', authenticateToken, upload.single('referenceImage'), async (re
       });
     }
 
-    const connection = await createConnection();
+    const connection = db;
 
     // 先获取原有数据
     const [existingRows] = await connection.execute(
@@ -292,7 +284,6 @@ router.put('/:id', authenticateToken, upload.single('referenceImage'), async (re
     );
 
     if (existingRows.length === 0) {
-      await connection.end();
       return res.status(404).json({
         success: false,
         message: '提示词不存在'
@@ -335,7 +326,6 @@ router.put('/:id', authenticateToken, upload.single('referenceImage'), async (re
         finalReferenceImageUrl = uploadResult.url;
       } catch (uploadError) {
         console.error('图片更新失败:', uploadError);
-        await connection.end();
         return res.status(500).json({
           success: false,
           message: '图片更新失败'
@@ -410,7 +400,6 @@ router.put('/:id', authenticateToken, upload.single('referenceImage'), async (re
     console.log('[提示词更新] 参数数量:', updateValues.length);
 
     await connection.execute(updateSQL, updateValues);
-    await connection.end();
 
     // 清除提示词缓存
     await imageCacheService.clearPromptsCache(userId);
@@ -437,9 +426,9 @@ router.put('/:id', authenticateToken, upload.single('referenceImage'), async (re
 router.delete('/:id', authenticateToken, async (req, res) => {
   try {
     const { id } = req.params;
-    const userId = req.user.userId || req.user.id;
+    const userId = req.user.id;
 
-    const connection = await createConnection();
+    const connection = db;
     
     // 先获取提示词信息
     const [rows] = await connection.execute(
@@ -448,7 +437,6 @@ router.delete('/:id', authenticateToken, async (req, res) => {
     );
 
     if (rows.length === 0) {
-      await connection.end();
       return res.status(404).json({
         success: false,
         message: '提示词不存在'
@@ -462,7 +450,6 @@ router.delete('/:id', authenticateToken, async (req, res) => {
       'DELETE FROM prompts WHERE id = ? AND user_id = ?',
       [id, userId]
     );
-    await connection.end();
 
     // 删除OSS中的图片
     if (prompt.reference_image_key) {
@@ -491,13 +478,12 @@ router.delete('/:id', authenticateToken, async (req, res) => {
  */
 router.get('/common', authenticateToken, async (req, res) => {
   try {
-    const connection = await createConnection();
-    const userId = req.user.userId || req.user.id;
+    const connection = db;
+    const userId = req.user.id;
     const [rows] = await connection.execute(
       'SELECT * FROM common_prompts WHERE user_id = ? ORDER BY created_at DESC',
       [userId]
     );
-    await connection.end();
 
     res.json({
       success: true,
@@ -519,7 +505,7 @@ router.get('/common', authenticateToken, async (req, res) => {
 router.post('/common', authenticateToken, async (req, res) => {
   try {
     const { name, content } = req.body;
-    const userId = req.user.userId || req.user.id;
+    const userId = req.user.id;
 
     if (!name || !content) {
       return res.status(400).json({
@@ -528,12 +514,11 @@ router.post('/common', authenticateToken, async (req, res) => {
       });
     }
 
-    const connection = await createConnection();
+    const connection = db;
     const [result] = await connection.execute(
       'INSERT INTO common_prompts (user_id, title, content, type) VALUES (?, ?, ?, ?)',
       [userId, name, content, 'image']
     );
-    await connection.end();
 
     res.json({
       success: true,
@@ -562,7 +547,7 @@ router.put('/common/:id', authenticateToken, async (req, res) => {
   try {
     const { id } = req.params;
     const { name, content } = req.body;
-    const userId = req.user.userId || req.user.id;
+    const userId = req.user.id;
 
     if (!name || !content) {
       return res.status(400).json({
@@ -571,12 +556,11 @@ router.put('/common/:id', authenticateToken, async (req, res) => {
       });
     }
 
-    const connection = await createConnection();
+    const connection = db;
     const [result] = await connection.execute(
       'UPDATE common_prompts SET title = ?, content = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND user_id = ?',
       [name, content, id, userId]
     );
-    await connection.end();
 
     if (result.affectedRows === 0) {
       return res.status(404).json({
@@ -605,14 +589,13 @@ router.put('/common/:id', authenticateToken, async (req, res) => {
 router.delete('/common/:id', authenticateToken, async (req, res) => {
   try {
     const { id } = req.params;
-    const userId = req.user.userId || req.user.id;
+    const userId = req.user.id;
 
-    const connection = await createConnection();
+    const connection = db;
     const [result] = await connection.execute(
       'DELETE FROM common_prompts WHERE id = ? AND user_id = ?',
       [id, userId]
     );
-    await connection.end();
 
     if (result.affectedRows === 0) {
       return res.status(404).json({
@@ -641,7 +624,7 @@ router.delete('/common/:id', authenticateToken, async (req, res) => {
 router.post('/batch-upload', authenticateToken, async (req, res) => {
   try {
     const { promptCards, commonPrompts } = req.body;
-    const userId = req.user.userId || req.user.id;
+    const userId = req.user.id;
     
     if (!promptCards && !commonPrompts) {
       return res.status(400).json({
@@ -650,7 +633,7 @@ router.post('/batch-upload', authenticateToken, async (req, res) => {
       });
     }
 
-    const connection = await createConnection();
+    const connection = db;
     const results = {
       promptCards: { success: 0, failed: 0, errors: [] },
       commonPrompts: { success: 0, failed: 0, errors: [] }
@@ -743,8 +726,6 @@ router.post('/batch-upload', authenticateToken, async (req, res) => {
       }
     }
 
-    await connection.end();
-
     const totalSuccess = results.promptCards.success + results.commonPrompts.success;
     const totalFailed = results.promptCards.failed + results.commonPrompts.failed;
 
@@ -769,15 +750,14 @@ router.post('/batch-upload', authenticateToken, async (req, res) => {
  */
 router.get('/video-common', authenticateToken, async (req, res) => {
   try {
-    const connection = await createConnection();
-    const userId = req.user.userId || req.user.id;
+    const connection = db;
+    const userId = req.user.id;
 
     // 查询视频常用提示词（使用相同的common_prompts表，通过type字段区分）
     const [rows] = await connection.execute(
       'SELECT * FROM common_prompts WHERE user_id = ? AND type = ? ORDER BY created_at DESC',
       [userId, 'video']
     );
-    await connection.end();
 
     res.json({
       success: true,
@@ -800,7 +780,7 @@ router.get('/video-common', authenticateToken, async (req, res) => {
 router.post('/video-common', authenticateToken, async (req, res) => {
   try {
     const { name, content } = req.body;
-    const userId = req.user.userId || req.user.id;
+    const userId = req.user.id;
 
     if (!name || !content) {
       return res.status(400).json({
@@ -809,12 +789,11 @@ router.post('/video-common', authenticateToken, async (req, res) => {
       });
     }
 
-    const connection = await createConnection();
+    const connection = db;
     const [result] = await connection.execute(
       'INSERT INTO common_prompts (user_id, title, content, type) VALUES (?, ?, ?, ?)',
       [userId, name, content, 'video']
     );
-    await connection.end();
 
     res.json({
       success: true,
@@ -843,14 +822,13 @@ router.post('/video-common', authenticateToken, async (req, res) => {
 router.delete('/video-common/:id', authenticateToken, async (req, res) => {
   try {
     const { id } = req.params;
-    const userId = req.user.userId || req.user.id;
+    const userId = req.user.id;
 
-    const connection = await createConnection();
+    const connection = db;
     const [result] = await connection.execute(
       'DELETE FROM common_prompts WHERE id = ? AND user_id = ? AND type = ?',
       [id, userId, 'video']
     );
-    await connection.end();
 
     if (result.affectedRows === 0) {
       return res.status(404).json({
@@ -873,3 +851,4 @@ router.delete('/video-common/:id', authenticateToken, async (req, res) => {
 });
 
 module.exports = router;
+

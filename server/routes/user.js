@@ -14,7 +14,7 @@ router.use(authenticateToken);
  */
 router.get('/reference-images', async (req, res) => {
   try {
-    const userId = req.user.userId;
+    const userId = req.user.id;
 
     // 先尝试从缓存获取
     const cachedImages = await imageCacheService.getUserReferenceImages(userId);
@@ -68,7 +68,7 @@ router.get('/reference-images', async (req, res) => {
 router.post('/reference-images', async (req, res) => {
   try {
     const { name, url } = req.body;
-    const userId = req.user.userId;
+    const userId = req.user.id;
 
     if (!name || !url) {
       return res.status(400).json({
@@ -113,7 +113,7 @@ router.post('/reference-images', async (req, res) => {
 router.delete('/reference-images/:id', async (req, res) => {
   try {
     const { id } = req.params;
-    const userId = req.user.userId;
+    const userId = req.user.id;
 
     const connection = await getConnection();
 
@@ -156,7 +156,7 @@ router.get('/prompts', async (req, res) => {
     
     const [prompts] = await connection.execute(
       'SELECT id, name, content, created_at FROM prompts WHERE user_id = ? ORDER BY created_at DESC',
-      [req.user.userId]
+      [req.user.id]
     );
 
     res.json({
@@ -194,7 +194,7 @@ router.post('/prompts', async (req, res) => {
     
     const [result] = await connection.execute(
       'INSERT INTO prompts (user_id, name, content, created_at) VALUES (?, ?, ?, NOW())',
-      [req.user.userId, name, content]
+      [req.user.id, name, content]
     );
 
     res.status(201).json({
@@ -236,7 +236,7 @@ router.put('/prompts/:id', async (req, res) => {
     
     const [result] = await connection.execute(
       'UPDATE prompts SET name = ?, content = ? WHERE id = ? AND user_id = ?',
-      [name, content, id, req.user.userId]
+      [name, content, id, req.user.id]
     );
 
     if (result.affectedRows === 0) {
@@ -272,7 +272,7 @@ router.delete('/prompts/:id', async (req, res) => {
     
     const [result] = await connection.execute(
       'DELETE FROM prompts WHERE id = ? AND user_id = ?',
-      [id, req.user.userId]
+      [id, req.user.id]
     );
 
     if (result.affectedRows === 0) {

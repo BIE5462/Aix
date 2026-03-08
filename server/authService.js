@@ -1,20 +1,9 @@
-const jwt = require('jsonwebtoken');
+﻿const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
-const mysql = require('mysql2/promise');
 const config = require('./config');
+const { getPool } = require('./db');
 
-// 创建数据库连接池
-const pool = mysql.createPool({
-  host: config.database.host,
-  port: config.database.port,
-  user: config.database.user,
-  password: config.database.password,
-  database: config.database.database,
-  waitForConnections: true,
-  connectionLimit: 10,
-  queueLimit: 0,
-  connectTimeout: 60000
-});
+const pool = getPool();
 
 // JWT配置
 const JWT_SECRET = config.jwt.secret;
@@ -284,3 +273,4 @@ const authService = {
 };
 
 module.exports = authService;
+

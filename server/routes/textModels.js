@@ -1,51 +1,10 @@
 const express = require('express');
 const router = express.Router();
 const { getConnection } = require('../database');
-const authService = require('../authService');
-
-// 用户认证中间件
-const requireAuth = async (req, res, next) => {
-  try {
-    const authHeader = req.headers['authorization'];
-    const token = authHeader && authHeader.split(' ')[1];
-
-    if (!token) {
-      return res.status(401).json({ error: '访问令牌缺失' });
-    }
-
-    const result = await authService.verifyToken(token);
-    req.user = result.user;
-    next();
-  } catch (error) {
-    return res.status(403).json({ error: '无效的访问令牌' });
-  }
-};
-
-// 管理员认证中间件
-const requireAdmin = async (req, res, next) => {
-  try {
-    const authHeader = req.headers['authorization'];
-    const token = authHeader && authHeader.split(' ')[1];
-
-    if (!token) {
-      return res.status(401).json({ error: '访问令牌缺失' });
-    }
-
-    const result = await authService.verifyToken(token);
-
-    if (!result.user.is_admin) {
-      return res.status(403).json({ error: '需要管理员权限' });
-    }
-
-    req.user = result.user;
-    next();
-  } catch (error) {
-    return res.status(403).json({ error: '无效的访问令牌' });
-  }
-};
+const { authenticateToken, requireAdmin } = require('../middleware/auth');
 
 // 获取可用的文本模型列表（用户端）
-router.get('/', requireAuth, async (req, res) => {
+router.get('/', authenticateToken, async (req, res) => {
   try {
     const pool = getConnection();
     const [models] = await pool.execute(

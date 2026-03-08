@@ -1,10 +1,11 @@
-const express = require('express');
+﻿const express = require('express');
 const multer = require('multer');
 const { authenticateToken } = require('../middleware/auth');
 const videoGenerationService = require('../services/videoGenerationService');
 const redisService = require('../services/redisService');
 const userDataService = require('../userDataService');
 const { historyService } = require('../database');
+const videoModelRepository = require('../repositories/videoModelRepository');
 
 const router = express.Router();
 
@@ -83,54 +84,34 @@ router.post('/generate', authenticateToken, upload.fields([
     const dbIdToQuery = modelDbId || modelId;
 
     if (dbIdToQuery) {
-      // 检查是否是数字或数字字符串（数据库ID）
       const isDbId = !isNaN(dbIdToQuery);
 
       console.log('[视频生成] 查询参数:', { dbIdToQuery, isDbId });
 
       if (isDbId) {
-        // 是数据库ID，需要查询
-        const mysql = require('mysql2/promise');
-        const config = require('../config');
-        const connection = await mysql.createConnection(config.database);
-
         console.log('[视频生成] 查询数据库ID:', dbIdToQuery);
 
-        const [rows] = await connection.execute(
-          'SELECT id, model_id, name, model_type FROM video_models WHERE id = ? AND is_active = 1',
-          [dbIdToQuery]
-        );
+        const model = await videoModelRepository.findActiveById(dbIdToQuery);
 
-        await connection.end();
+        console.log('[视频生成] 数据库查询结果:', model ? [model] : []);
 
-        console.log('[视频生成] 数据库查询结果:', rows);
-
-        if (rows.length > 0) {
-          videoModelDbId = rows[0].id; // 保存数据库ID
-          actualModelId = rows[0].model_id;
-          modelType = rows[0].model_type;
-          console.log(`[视频生成] 使用数据库ID ${dbIdToQuery} 查询到模型: ${rows[0].name}, db_id: ${videoModelDbId}, model_id: ${actualModelId}, type: ${modelType}`);
+        if (model) {
+          videoModelDbId = model.id;
+          actualModelId = model.model_id;
+          modelType = model.model_type;
+          console.log(`[视频生成] 使用数据库ID ${dbIdToQuery} 查询到模型: ${model.name}, db_id: ${videoModelDbId}, model_id: ${actualModelId}, type: ${modelType}`);
         } else {
           console.error('[视频生成] 未找到模型, dbId:', dbIdToQuery);
           return res.status(400).json({ error: '指定的视频模型不存在或未启用' });
         }
       } else {
-        // 是模型ID字符串，直接使用，尝试查询数据库ID
         actualModelId = dbIdToQuery;
         console.log('[视频生成] 直接使用模型ID字符串:', actualModelId);
 
-        // 尝试通过model_id查询数据库ID
         try {
-          const mysql = require('mysql2/promise');
-          const config = require('../config');
-          const connection = await mysql.createConnection(config.database);
-          const [rows] = await connection.execute(
-            'SELECT id FROM video_models WHERE model_id = ? AND is_active = 1 LIMIT 1',
-            [actualModelId]
-          );
-          await connection.end();
-          if (rows.length > 0) {
-            videoModelDbId = rows[0].id;
+          const model = await videoModelRepository.findActiveByModelId(actualModelId);
+          if (model) {
+            videoModelDbId = model.id;
             console.log('[视频生成] 通过model_id查询到数据库ID:', videoModelDbId);
           }
         } catch (e) {
@@ -510,51 +491,27 @@ router.post('/characters', authenticateToken, async (req, res) => {
  */
 router.get('/models', async (req, res) => {
   try {
-    const mysql = require('mysql2/promise');
-    const config = require('../config');
+    const rows = await videoModelRepository.listActiveModels();
 
-    // 创建数据库连接
-    const connection = await mysql.createConnection(config.database);
-
-    // 查询video_models表 - 使用实际存在的字段
-    const [rows] = await connection.execute(
-      `SELECT
-        id,
-        name,
-        provider,
-        model_type,
-        model_id,
-        api_url,
-        icon_url,
-        is_active,
-        created_at,
-        updated_at
-      FROM video_models
-      WHERE is_active = 1
-      ORDER BY created_at DESC`
-    );
-
-    // 将数据库字段映射为前端期望的格式
     const models = rows.map(row => {
-      // 根据model_type确定mode和features
       const isImageToVideo = row.model_type === 'image-to-video-first' || row.model_type === 'image-to-video-both';
       const supportsBothFrames = row.model_type === 'image-to-video-both';
 
       return {
-        id: row.id,  // 使用数据库ID作为前端ID
+        id: row.id,
         name: row.name,
-        description: `${row.provider} - ${row.model_type}`, // 组合描述
+        description: `${row.provider} - ${row.model_type}`,
         provider: row.provider,
-        model_id: row.model_id,  // API调用时使用的模型ID
-        maxDuration: 10, // 默认值
-        is_default: rows.indexOf(row) === 0, // 第一个作为默认
+        model_id: row.model_id,
+        maxDuration: 10,
+        is_default: rows.indexOf(row) === 0,
         supportedResolutions: [
           { width: 1280, height: 720, label: '720p' },
           { width: 1920, height: 1080, label: '1080p' }
         ],
         mode: isImageToVideo ? 'image-to-video' : 'text-to-video',
         features: {
-          supportLastFrame: supportsBothFrames  // 只有首尾帧模型才支持尾帧
+          supportLastFrame: supportsBothFrames
         },
         aspectRatios: ['16:9', '9:16', '1:1', '4:3', '3:4'],
         iconUrl: row.icon_url,
@@ -564,13 +521,10 @@ router.get('/models', async (req, res) => {
       };
     });
 
-    await connection.end();
-
     res.json({
       success: true,
       models
     });
-
   } catch (error) {
     console.error('获取视频模型列表失败:', error);
     res.status(500).json({
@@ -582,3 +536,6 @@ router.get('/models', async (req, res) => {
 });
 
 module.exports = router;
+
+
+

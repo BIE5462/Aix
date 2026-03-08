@@ -1,33 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const worksService = require('../services/worksService');
-const authService = require('../authService');
-
-// 认证中间件
-const authenticateToken = async (req, res, next) => {
-  try {
-    const authHeader = req.headers['authorization'];
-    const token = authHeader && authHeader.split(' ')[1];
-    
-    if (!token) {
-      return res.status(401).json({ 
-        success: false, 
-        error: '未提供认证令牌' 
-      });
-    }
-    
-    const result = await authService.verifyToken(token);
-    req.user = result.user;
-    next();
-  } catch (error) {
-    console.error('Token验证失败:', error);
-    return res.status(401).json({ 
-      success: false, 
-      error: '认证失败，请重新登录',
-      code: 'TOKEN_EXPIRED'
-    });
-  }
-};
+const { authenticateToken } = require('../middleware/auth');
 
 /**
  * 获取公共作品列表（无需认证）
@@ -82,7 +56,7 @@ router.get('/:id', async (req, res) => {
  */
 router.post('/', authenticateToken, async (req, res) => {
   try {
-    const userId = req.user.userId || req.user.id;
+    const userId = req.user.id;
     const workData = req.body;
 
     console.log('[POST /api/works] 发布作品请求:', {
@@ -110,7 +84,7 @@ router.post('/', authenticateToken, async (req, res) => {
  */
 router.delete('/:id', authenticateToken, async (req, res) => {
   try {
-    const userId = req.user.userId || req.user.id;
+    const userId = req.user.id;
     const { id } = req.params;
 
     const result = await worksService.unpublishWork(userId, id);
@@ -135,7 +109,7 @@ router.delete('/:id', authenticateToken, async (req, res) => {
  */
 router.delete('/:id/permanent', authenticateToken, async (req, res) => {
   try {
-    const userId = req.user.userId || req.user.id;
+    const userId = req.user.id;
     const { id } = req.params;
 
     const result = await worksService.deleteWorkPermanently(userId, id);
@@ -181,7 +155,7 @@ router.post('/:id/view', async (req, res) => {
  */
 router.get('/user/my', authenticateToken, async (req, res) => {
   try {
-    const userId = req.user.userId || req.user.id;
+    const userId = req.user.id;
     const { page, pageSize } = req.query;
 
     const result = await worksService.getUserWorks(userId, { page, pageSize });
@@ -202,7 +176,7 @@ router.get('/user/my', authenticateToken, async (req, res) => {
  */
 router.put('/:id/publish', authenticateToken, async (req, res) => {
   try {
-    const userId = req.user.userId || req.user.id;
+    const userId = req.user.id;
     const { id } = req.params;
 
     const result = await worksService.republishWork(userId, id);
@@ -227,7 +201,7 @@ router.put('/:id/publish', authenticateToken, async (req, res) => {
  */
 router.post('/:id/like', authenticateToken, async (req, res) => {
   try {
-    const userId = req.user.userId || req.user.id;
+    const userId = req.user.id;
     const { id } = req.params;
 
     const result = await worksService.likeWork(userId, id);
@@ -252,7 +226,7 @@ router.post('/:id/like', authenticateToken, async (req, res) => {
  */
 router.delete('/:id/like', authenticateToken, async (req, res) => {
   try {
-    const userId = req.user.userId || req.user.id;
+    const userId = req.user.id;
     const { id } = req.params;
 
     const result = await worksService.unlikeWork(userId, id);
@@ -277,7 +251,7 @@ router.delete('/:id/like', authenticateToken, async (req, res) => {
  */
 router.get('/:id/like-status', authenticateToken, async (req, res) => {
   try {
-    const userId = req.user.userId || req.user.id;
+    const userId = req.user.id;
     const { id } = req.params;
 
     const result = await worksService.checkLikeStatus(userId, id);

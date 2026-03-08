@@ -1,22 +1,8 @@
-const mysql = require('mysql2/promise');
-const config = require('./config');
+﻿const { getPool } = require('./db');
 const ossManager = require('./utils/ossManager');
 const videoOSSService = require('./services/videoOSSService');
 
-// 创建数据库连接池
-const pool = mysql.createPool({
-  host: config.database.host,
-  port: config.database.port,
-  user: config.database.user,
-  password: config.database.password,
-  database: config.database.database,
-  waitForConnections: true,
-  connectionLimit: 10,
-  queueLimit: 0,
-  connectTimeout: 60000,
-  acquireTimeout: 60000,
-  idleTimeout: 300000
-});
+const pool = getPool();
 
 const safeParseJson = (value, fallback) => {
   if (!value) return fallback;
@@ -763,3 +749,4 @@ const userDataService = {
 };
 
 module.exports = userDataService;
+

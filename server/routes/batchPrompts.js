@@ -1,31 +1,13 @@
 const express = require('express');
 const router = express.Router();
 const { getConnection } = require('../database');
-const authService = require('../authService');
-
-// 用户认证中间件
-const requireAuth = async (req, res, next) => {
-  try {
-    const authHeader = req.headers['authorization'];
-    const token = authHeader && authHeader.split(' ')[1];
-
-    if (!token) {
-      return res.status(401).json({ error: '访问令牌缺失' });
-    }
-
-    const result = await authService.verifyToken(token);
-    req.user = result.user;
-    next();
-  } catch (error) {
-    return res.status(403).json({ error: '无效的访问令牌' });
-  }
-};
+const { authenticateToken } = require('../middleware/auth');
 
 // 保存批量输入历史
-router.post('/history', requireAuth, async (req, res) => {
+router.post('/history', authenticateToken, async (req, res) => {
   try {
     const { name, prompts, source_type = 'manual', source_id = null } = req.body;
-    const userId = req.user.userId;
+    const userId = req.user.id;
 
     // 验证参数
     if (!name || !prompts || !Array.isArray(prompts)) {
@@ -72,9 +54,9 @@ router.post('/history', requireAuth, async (req, res) => {
 });
 
 // 获取批量输入历史列表
-router.get('/history', requireAuth, async (req, res) => {
+router.get('/history', authenticateToken, async (req, res) => {
   try {
-    const userId = req.user.userId;
+    const userId = req.user.id;
     const { page = 1, pageSize = 20 } = req.query;
 
     const offset = (page - 1) * pageSize;
@@ -112,10 +94,10 @@ router.get('/history', requireAuth, async (req, res) => {
 });
 
 // 获取批量输入历史详情
-router.get('/history/:id', requireAuth, async (req, res) => {
+router.get('/history/:id', authenticateToken, async (req, res) => {
   try {
     const { id } = req.params;
-    const userId = req.user.userId;
+    const userId = req.user.id;
     const pool = getConnection();
 
     const [records] = await pool.execute(
@@ -158,10 +140,10 @@ router.get('/history/:id', requireAuth, async (req, res) => {
 });
 
 // 删除批量输入历史
-router.delete('/history/:id', requireAuth, async (req, res) => {
+router.delete('/history/:id', authenticateToken, async (req, res) => {
   try {
     const { id } = req.params;
-    const userId = req.user.userId;
+    const userId = req.user.id;
     const pool = getConnection();
 
     const [result] = await pool.execute(

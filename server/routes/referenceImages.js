@@ -1,84 +1,105 @@
-const express = require('express');
-const router = express.Router();
+﻿const express = require('express');
 const multer = require('multer');
-const ossManager = require('../utils/ossManager');
+const path = require('path');
+const referenceImageOSS = require('../services/referenceImageOSS');
+const userDataService = require('../userDataService');
+
+const router = express.Router();
 
 const upload = multer({
   storage: multer.memoryStorage(),
-  limits: { fileSize: 10 * 1024 * 1024 }
+  limits: {
+    fileSize: 10 * 1024 * 1024,
+    files: 10
+  }
 });
 
-// 获取用户的所有参考图
-router.get('/list', async (req, res) => {
+const normalizeImage = (image, categoryMap = {}) => {
+  const categoryId = image.categoryId ?? image.category_id ?? null;
+  const url = image.url || image.oss_url || image.ossUrl || (image.filename ? `/uploads/${image.filename}` : null);
+  const thumbnailUrl = image.thumbnailUrl || image.oss_thumbnail_url || image.thumbnail_url || image.ossThumbnailUrl || url;
+  const fileSize = image.fileSize ?? image.file_size ?? image.size ?? null;
+  const originalName = image.originalName || image.original_name || image.filename || image.name;
+  const mimeType = image.mimeType || image.mime_type || null;
+  const categoryName = image.categoryName || image.category || categoryMap[categoryId] || null;
+
+  return {
+    id: image.id,
+    name: image.name || originalName,
+    filename: image.filename || null,
+    originalName,
+    filePath: image.filePath || image.file_path || null,
+    fileSize,
+    mimeType,
+    url,
+    thumbnailUrl,
+    ossKey: image.ossKey || image.oss_key || null,
+    ossThumbnailKey: image.ossThumbnailKey || image.oss_thumbnail_key || null,
+    compressedSize: image.compressedSize || image.compressed_size || null,
+    categoryId,
+    categoryName,
+    createdAt: image.createdAt || image.created_at,
+    updatedAt: image.updatedAt || image.updated_at,
+    isPublic: image.isPublic || false,
+    category_id: categoryId,
+    category: categoryName,
+    ossUrl: url,
+    size: fileSize
+  };
+};
+
+const getUserId = (req, res) => {
+  const userId = req.user?.id;
+
+  if (!userId) {
+    res.status(401).json({
+      success: false,
+      error: '请先登录'
+    });
+    return null;
+  }
+
+  return userId;
+};
+
+const getCategoryMap = async (service, userId) => {
+  const categories = await service.listCategories(userId);
+  const categoryMap = {};
+
+  for (const category of categories) {
+    categoryMap[category.id] = category.name;
+  }
+
+  return { categories, categoryMap };
+};
+
+const listReferenceImages = async (req, res) => {
   try {
-    const userId = req.user?.id;
-    const since = req.query.since; // 时间戳，仅返回此时间之后的更新
+    const userId = getUserId(req, res);
+    if (!userId) return;
 
-    if (!userId) {
-      return res.status(401).json({
-        success: false,
-        error: '请先登录'
-      });
-    }
+    const since = req.query.since;
+    const service = req.app.locals.referenceImageService;
+    const rows = await service.getUserReferenceImages(userId);
+    const { categoryMap } = await getCategoryMap(service, userId);
 
-    // 安全：只获取用户自己的参考图，不显示公共图片
-    const userImages = await req.app.locals.referenceImageService.getUserReferenceImages(userId);
-
-    let allImages = userImages.map(img => ({ ...img, isPublic: false }));
-
-    // 如果提供了 since 参数，只返回更新的图片
+    let images = rows.map((row) => normalizeImage(row, categoryMap));
     let deletedIds = [];
-    if (since) {
-      const sinceDate = new Date(parseInt(since));
 
-      // 过滤出在 since 时间之后创建或更新的图片
-      const updatedImages = allImages.filter(img => {
-        const createdAt = new Date(img.created_at);
-        const updatedAt = img.updated_at ? new Date(img.updated_at) : createdAt;
+    if (since) {
+      const sinceDate = new Date(parseInt(since, 10));
+      images = images.filter((image) => {
+        const createdAt = new Date(image.createdAt);
+        const updatedAt = image.updatedAt ? new Date(image.updatedAt) : createdAt;
         return updatedAt > sinceDate || createdAt > sinceDate;
       });
-
-      // 为简化，这里只返回新增和更新的图片
-      allImages = updatedImages;
-
-      console.log(`[增量查询] since=${sinceDate.toISOString()}, 返回${allImages.length}个更新的图片`);
     }
 
-    // 查询分类名称（通过category_id）
-    const connection = await req.app.locals.referenceImageService.connection;
-    const categoryIds = [...new Set(allImages.map(img => img.category_id).filter(Boolean))];
-    const categoryMap = {};
-
-    if (categoryIds.length > 0) {
-      const placeholders = categoryIds.map(() => '?').join(',');
-      const [categories] = await connection.execute(
-        `SELECT id, name FROM reference_image_categories WHERE id IN (${placeholders})`,
-        categoryIds
-      );
-      categories.forEach(cat => {
-        categoryMap[cat.id] = cat.name;
-      });
-    }
-
-    // 返回图片列表，包含OSS URL和分类名称
     res.json({
       success: true,
-      images: allImages.map(img => ({
-        id: img.id,
-        name: img.name,
-        category: categoryMap[img.category_id] || null, // 分类名称
-        category_id: img.category_id, // 分类ID
-        ossUrl: img.oss_url,
-        thumbnailUrl: img.thumbnail_url || img.oss_url,
-        originalName: img.original_name,
-        size: img.size,
-        mimeType: img.mime_type,
-        isPublic: false, // 所有图片都是用户自己的
-        createdAt: img.created_at,
-        updatedAt: img.updated_at
-      })),
-      deletedIds: deletedIds, // 已删除的图片ID列表（如果实现了删除检测）
-      timestamp: Date.now() // 当前服务器时间戳，供下次增量查询使用
+      images,
+      deletedIds,
+      timestamp: Date.now()
     });
   } catch (error) {
     console.error('获取参考图列表失败:', error);
@@ -87,217 +108,284 @@ router.get('/list', async (req, res) => {
       error: '获取参考图列表失败'
     });
   }
-});
+};
 
-// 获取分类列表
-router.get('/categories', async (req, res) => {
+const uploadReferenceImages = async (req, res) => {
   try {
-    const userId = req.user?.id;
+    const userId = getUserId(req, res);
+    if (!userId) return;
 
-    if (!userId) {
-      return res.status(401).json({
-        success: false,
-        error: '请先登录'
-      });
+    const files = req.files;
+    const { categoryId, is_prompt_reference } = req.body;
+
+    if (!files || files.length === 0) {
+      return res.status(400).json({ success: false, error: '请选择要上传的图片' });
     }
 
-    const categories = await req.app.locals.referenceImageService.getCategories(userId);
+    const service = req.app.locals.referenceImageService;
 
-    res.json({
-      success: true,
-      categories
-    });
-  } catch (error) {
-    console.error('获取分类失败:', error);
-    res.status(500).json({
-      success: false,
-      error: '获取分类失败'
-    });
-  }
-});
-
-// 获取单个参考图详情（用于提示词卡片加载）
-// 注意：这个路由必须放在具体路径（如 /list, /categories）之后，避免路由冲突
-router.get('/:id', async (req, res) => {
-  try {
-    const userId = req.user?.id;
-    const imageId = req.params.id;
-
-    if (!userId) {
-      return res.status(401).json({
-        success: false,
-        error: '请先登录'
-      });
+    if (categoryId !== undefined && categoryId !== null && categoryId !== '') {
+      await service.ensureCategoryExists(userId, categoryId);
     }
 
-    // 从数据库获取参考图信息
-    const connection = await req.app.locals.referenceImageService.connection;
-    const [rows] = await connection.execute(
-      `SELECT id, name, original_name, oss_url, url, oss_thumbnail_url,
-              file_size, mime_type, category_id, created_at
-       FROM reference_images
-       WHERE id = ? AND (user_id = ? OR user_id IS NULL)`,
-      [imageId, userId]
-    );
+    const validFiles = [];
+    const errors = [];
 
-    if (rows.length === 0) {
-      return res.status(404).json({
-        success: false,
-        error: '参考图不存在'
-      });
-    }
-
-    const image = rows[0];
-
-    res.json({
-      success: true,
-      data: {
-        id: image.id,
-        name: image.name,
-        original_name: image.original_name,
-        oss_url: image.oss_url,
-        url: image.url || image.oss_url,
-        thumbnail_url: image.oss_thumbnail_url || image.oss_url,
-        file_size: image.file_size,
-        mime_type: image.mime_type,
-        category_id: image.category_id,
-        created_at: image.created_at
+    for (const file of files) {
+      if (!referenceImageOSS.isSupportedImageFormat(file.originalname)) {
+        errors.push(`${file.originalname}: 不支持的图片格式`);
+        continue;
       }
-    });
-  } catch (error) {
-    console.error('获取参考图详情失败:', error);
-    res.status(500).json({
-      success: false,
-      error: '获取参考图详情失败'
-    });
-  }
-});
 
-// 上传新的参考图
-router.post('/upload', upload.single('image'), async (req, res) => {
-  try {
-    const userId = req.user?.id;
-    const { name, category } = req.body;
-    const file = req.file;
+      if (file.size > referenceImageOSS.getMaxFileSize()) {
+        errors.push(`${file.originalname}: 文件大小超过10MB限制`);
+        continue;
+      }
 
-    if (!userId) {
-      return res.status(401).json({
-        success: false,
-        error: '请先登录'
+      validFiles.push({
+        buffer: file.buffer,
+        fileName: file.originalname
       });
     }
 
-    if (!file) {
+    if (validFiles.length === 0) {
       return res.status(400).json({
         success: false,
-        error: '请选择要上传的图片'
+        error: '没有有效的图片文件',
+        details: errors
       });
     }
 
-    // 生成唯一的文件名
-    const timestamp = Date.now();
-    const randomStr = Math.random().toString(36).substring(7);
-    const fileExt = file.originalname.split('.').pop();
-    const fileName = `${timestamp}_${randomStr}.${fileExt}`;
+    const uploadResult = await referenceImageOSS.uploadMultipleReferenceImages(validFiles, userId, {
+      compress: true,
+      maxWidth: 1200,
+      quality: 0.85,
+      generateThumbnail: true
+    });
 
-    // 上传到OSS
-    const ossKey = `reference-images/${userId}/${fileName}`;
-    const ossUrl = await ossManager.uploadBuffer(file.buffer, ossKey, file.mimetype);
-
-    // 生成缩略图URL（如果需要的话，可以使用OSS的图片处理功能）
-    let thumbnailUrl = ossUrl;
-    // 如果是阿里云OSS，可以添加图片处理参数来生成缩略图
-    if (ossUrl.includes('aliyuncs.com')) {
-      thumbnailUrl = `${ossUrl}?x-oss-process=image/resize,w_200,h_200,m_fill`;
+    if (!uploadResult.success) {
+      return res.status(500).json({
+        success: false,
+        error: '图片上传失败',
+        details: uploadResult.errors
+      });
     }
 
-    // 保存到数据库
-    const imageRecord = await req.app.locals.referenceImageService.addReferenceImage({
-      userId,
-      name: name || file.originalname,
-      category: category || 'default',
-      ossUrl,
-      thumbnailUrl,
-      originalName: file.originalname,
-      size: file.size,
-      mimeType: file.mimetype
-    });
+    const savedImages = [];
+
+    for (const result of uploadResult.results) {
+      const imageData = {
+        filename: result.key.split('/').pop(),
+        originalName: result.originalName,
+        filePath: result.key,
+        fileSize: result.originalSize,
+        mimeType: referenceImageOSS.getMimeType(path.extname(result.originalName)),
+        ossUrl: result.url,
+        ossKey: result.key,
+        ossThumbnailUrl: result.thumbnailUrl,
+        ossThumbnailKey: result.thumbnailKey,
+        compressedSize: result.compressedSize
+      };
+
+      const dbResult = await userDataService.referenceImages.addReferenceImage(
+        userId,
+        imageData,
+        categoryId || null,
+        is_prompt_reference === '1' ? 1 : 0
+      );
+
+      savedImages.push(normalizeImage(dbResult.image));
+    }
 
     res.json({
       success: true,
-      image: {
-        id: imageRecord.id,
-        name: imageRecord.name,
-        category: imageRecord.category,
-        ossUrl: imageRecord.oss_url,
-        thumbnailUrl: imageRecord.thumbnail_url,
-        originalName: imageRecord.original_name,
-        size: imageRecord.size,
-        mimeType: imageRecord.mime_type
+      message: `成功添加${savedImages.length}张参考图`,
+      images: savedImages,
+      summary: {
+        total: files.length,
+        success: savedImages.length,
+        failed: errors.length + uploadResult.errors.length,
+        errors: [...errors, ...uploadResult.errors.map((item) => item.error)]
       }
     });
   } catch (error) {
+    const status = error.status || 500;
     console.error('上传参考图失败:', error);
-    res.status(500).json({
+    res.status(status).json({
       success: false,
-      error: '上传参考图失败'
+      error: error.message || '上传参考图失败'
     });
   }
-});
+};
 
-// 删除参考图
-router.delete('/:id', async (req, res) => {
-  try {
-    const userId = req.user?.id;
-    const imageId = req.params.id;
+router.get('/', listReferenceImages);
+router.get('/list', listReferenceImages);
 
-    if (!userId) {
-      return res.status(401).json({
-        success: false,
-        error: '请先登录'
-      });
-    }
-
-    await req.app.locals.referenceImageService.deleteReferenceImage(imageId, userId);
-
-    res.json({
-      success: true,
-      message: '删除成功'
-    });
-  } catch (error) {
-    console.error('删除参考图失败:', error);
-    res.status(500).json({
-      success: false,
-      error: '删除参考图失败'
-    });
-  }
-});
-
-// 获取分类列表
 router.get('/categories', async (req, res) => {
   try {
-    const userId = req.user?.id;
+    const userId = getUserId(req, res);
+    if (!userId) return;
 
-    if (!userId) {
-      return res.status(401).json({
-        success: false,
-        error: '请先登录'
-      });
+    const categories = await req.app.locals.referenceImageService.listCategories(userId);
+    res.json({ success: true, categories: categories.map((category) => category.name) });
+  } catch (error) {
+    const status = error.status || 500;
+    console.error('获取分类失败:', error);
+    res.status(status).json({ success: false, error: error.message || '获取分类失败' });
+  }
+});
+
+router.post('/categories', async (req, res) => {
+  try {
+    const userId = getUserId(req, res);
+    if (!userId) return;
+
+    const category = await req.app.locals.referenceImageService.createCategory(userId, req.body?.name);
+    res.status(201).json({ success: true, category });
+  } catch (error) {
+    const status = error.status || 500;
+    console.error('创建分类失败:', error);
+    res.status(status).json({ success: false, error: error.message || '创建分类失败' });
+  }
+});
+
+router.put('/categories/:id', async (req, res) => {
+  try {
+    const userId = getUserId(req, res);
+    if (!userId) return;
+
+    const category = await req.app.locals.referenceImageService.updateCategory(userId, req.params.id, req.body?.name);
+    res.json({ success: true, category, message: '分类更新成功' });
+  } catch (error) {
+    const status = error.status || 500;
+    console.error('更新分类失败:', error);
+    res.status(status).json({ success: false, error: error.message || '更新分类失败' });
+  }
+});
+
+router.delete('/categories/:id', async (req, res) => {
+  try {
+    const userId = getUserId(req, res);
+    if (!userId) return;
+
+    await req.app.locals.referenceImageService.deleteCategory(userId, req.params.id);
+    res.json({ success: true, message: '分类删除成功' });
+  } catch (error) {
+    const status = error.status || 500;
+    console.error('删除分类失败:', error);
+    res.status(status).json({ success: false, error: error.message || '删除分类失败' });
+  }
+});
+
+router.delete('/batch', async (req, res) => {
+  try {
+    const userId = getUserId(req, res);
+    if (!userId) return;
+
+    const { imageIds } = req.body;
+
+    if (!Array.isArray(imageIds) || imageIds.length === 0) {
+      return res.status(400).json({ success: false, error: '请提供要删除的图片ID列表' });
     }
 
-    const categories = await req.app.locals.referenceImageService.getCategories(userId);
+    const deleteResult = await userDataService.referenceImages.deleteMultipleReferenceImages(userId, imageIds);
+
+    if (deleteResult.ossKeys.length > 0) {
+      const allKeys = [...deleteResult.ossKeys, ...deleteResult.ossThumbnailKeys];
+      await referenceImageOSS.deleteMultipleReferenceImages(allKeys);
+    }
 
     res.json({
       success: true,
-      categories
+      message: `成功删除${deleteResult.deletedCount}张参考图`,
+      deletedCount: deleteResult.deletedCount
     });
   } catch (error) {
-    console.error('获取分类失败:', error);
-    res.status(500).json({
-      success: false,
-      error: '获取分类失败'
-    });
+    const status = error.status || 500;
+    console.error('批量删除参考图失败:', error);
+    res.status(status).json({ success: false, error: error.message || '批量删除参考图失败' });
+  }
+});
+
+router.post('/move-to-category', async (req, res) => {
+  try {
+    const userId = getUserId(req, res);
+    if (!userId) return;
+
+    const result = await req.app.locals.referenceImageService.moveImagesToCategory(
+      userId,
+      req.body?.imageIds,
+      req.body?.categoryId ?? null
+    );
+
+    res.json({ success: true, ...result });
+  } catch (error) {
+    const status = error.status || 500;
+    console.error('移动图片到分类失败:', error);
+    res.status(status).json({ success: false, error: error.message || '移动图片到分类失败' });
+  }
+});
+
+router.post('/remove-from-category', async (req, res) => {
+  try {
+    const userId = getUserId(req, res);
+    if (!userId) return;
+
+    const result = await req.app.locals.referenceImageService.removeImagesFromCategory(userId, req.body?.imageIds);
+    res.json({ success: true, ...result });
+  } catch (error) {
+    const status = error.status || 500;
+    console.error('移出分类失败:', error);
+    res.status(status).json({ success: false, error: error.message || '移出分类失败' });
+  }
+});
+
+router.post('/', upload.array('images', 10), uploadReferenceImages);
+router.post('/upload', upload.array('images', 10), uploadReferenceImages);
+
+router.get('/:id', async (req, res) => {
+  try {
+    const userId = getUserId(req, res);
+    if (!userId) return;
+
+    const service = req.app.locals.referenceImageService;
+    const image = await service.getReferenceImageById(req.params.id, userId);
+
+    if (!image) {
+      return res.status(404).json({ success: false, error: '参考图不存在' });
+    }
+
+    const { categoryMap } = await getCategoryMap(service, userId);
+    res.json({ success: true, data: normalizeImage(image, categoryMap) });
+  } catch (error) {
+    const status = error.status || 500;
+    console.error('获取参考图详情失败:', error);
+    res.status(status).json({ success: false, error: error.message || '获取参考图详情失败' });
+  }
+});
+
+router.delete('/:id', async (req, res) => {
+  try {
+    const userId = getUserId(req, res);
+    if (!userId) return;
+
+    const deleteResult = await userDataService.referenceImages.deleteReferenceImage(userId, req.params.id);
+
+    if (deleteResult.ossKey) {
+      try {
+        await referenceImageOSS.deleteReferenceImage(deleteResult.ossKey, deleteResult.ossThumbnailKey);
+      } catch (ossError) {
+        console.warn('OSS文件删除失败，但数据库记录已删除:', ossError.message);
+      }
+    }
+
+    res.json({ success: true, message: '参考图删除成功' });
+  } catch (error) {
+    const status = error.message === '参考图不存在或无权限删除' ? 404 : (error.status || 500);
+    console.error('删除参考图失败:', error);
+    res.status(status).json({ success: false, error: error.message || '删除参考图失败' });
   }
 });
 
 module.exports = router;
+

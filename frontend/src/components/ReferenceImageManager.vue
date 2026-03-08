@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <div class="reference-image-manager">
     <!-- 分类管理区域 -->
     <div class="category-section">
@@ -424,7 +424,7 @@ const fetchCategories = async () => {
     const token = localStorage.getItem('token')
     if (!token) return
 
-    const response = await fetch('/api/reference-image-categories', {
+    const response = await fetch('/api/reference-images/categories', {
       headers: {
         'Authorization': `Bearer ${token}`,
         'Content-Type': 'application/json'
@@ -432,10 +432,23 @@ const fetchCategories = async () => {
     })
     if (response.ok) {
       const data = await response.json()
-      const userCats = Array.isArray(data) ? data : []
+      const userCats = Array.isArray(data?.categories) ? data.categories : (Array.isArray(data) ? data : [])
+      const mappedCategories = userCats
+        .map(category => {
+          if (typeof category === 'string') {
+            const name = String(category || '').trim()
+            return name ? { id: name, name } : null
+          }
+
+          const name = String(category?.name || '').trim()
+          if (!name) return null
+
+          return { id: category.id ?? name, name }
+        })
+        .filter(Boolean)
       categories.value = [
         { id: 'all', name: '全部' },
-        ...userCats
+        ...mappedCategories
       ]
     }
   } catch (error) {
@@ -477,7 +490,7 @@ const addCategory = async () => {
       return
     }
 
-    const response = await fetch('/api/reference-image-categories', {
+    const response = await fetch('/api/reference-images/categories', {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${token}`,
@@ -488,13 +501,13 @@ const addCategory = async () => {
 
     if (response.ok) {
       const data = await response.json()
-      categories.value.push(data)
+      categories.value.push(data.category || data)
       newCategoryName.value = ''
       showAddCategoryDialog.value = false
       console.log('分类添加成功')
     } else {
       const error = await response.json()
-      alert('添加分类失败: ' + error.message)
+      alert('添加分类失败: ' + (error.error || error.message))
     }
   } catch (error) {
     console.error('添加分类失败:', error)
@@ -513,7 +526,7 @@ const deleteCategory = async (categoryId) => {
       return
     }
 
-    const response = await fetch(`/api/reference-image-categories/${categoryId}`, {
+    const response = await fetch(`/api/reference-images/categories/${categoryId}`, {
       method: 'DELETE',
       headers: {
         'Authorization': `Bearer ${token}`,
@@ -536,7 +549,7 @@ const deleteCategory = async (categoryId) => {
       console.log('分类删除成功')
     } else {
       const error = await response.json()
-      alert('删除分类失败: ' + error.message)
+      alert('删除分类失败: ' + (error.error || error.message))
     }
   } catch (error) {
     console.error('删除分类失败:', error)
@@ -1861,3 +1874,5 @@ onMounted(() => {
   }
 }
 </style>
+
+

@@ -169,7 +169,7 @@ router.get('/me', authenticateToken, async (req, res) => {
     
     const [users] = await connection.execute(
       'SELECT id, username, created_at FROM users WHERE id = ?',
-      [req.user.userId]
+      [req.user.id]
     );
 
     if (users.length === 0) {
