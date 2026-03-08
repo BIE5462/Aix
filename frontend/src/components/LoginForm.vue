@@ -225,6 +225,7 @@
 import { ref, reactive } from 'vue'
 import { ElMessage } from 'element-plus'
 import { User, Lock } from '@element-plus/icons-vue'
+import { forgotPassword, login, register } from '../api/authApi'
 
 // 定义事件
 const emit = defineEmits(['login-success'])
@@ -326,18 +327,10 @@ const handleLogin = async () => {
     if (valid) {
       loading.value = true
       try {
-        const response = await fetch('/api/auth/login', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({
-            username: loginForm.username,
-            password: loginForm.password
-          })
+        const data = await login({
+          username: loginForm.username,
+          password: loginForm.password
         })
-        
-        const data = await response.json()
         
         if (data.success) {
           // 保存token到localStorage
@@ -367,18 +360,10 @@ const handleRegister = async () => {
     if (valid) {
       registerLoading.value = true
       try {
-        const response = await fetch('/api/auth/register', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({
-            username: registerForm.username,
-            password: registerForm.password
-          })
+        const data = await register({
+          username: registerForm.username,
+          password: registerForm.password
         })
-        
-        const data = await response.json()
         
         if (data.success) {
           ElMessage.success('注册成功！请登录')
@@ -410,18 +395,10 @@ const handleForgotPassword = async () => {
     if (valid) {
       forgotLoading.value = true
       try {
-        const response = await fetch('/api/auth/forgot-password', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({
-            username: forgotForm.username,
-            newPassword: forgotForm.newPassword
-          })
+        const data = await forgotPassword({
+          username: forgotForm.username,
+          newPassword: forgotForm.newPassword
         })
-        
-        const data = await response.json()
         
         if (data.success) {
           ElMessage.success('密码重置成功！请使用新密码登录')

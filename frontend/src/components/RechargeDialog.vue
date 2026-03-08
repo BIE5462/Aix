@@ -147,7 +147,7 @@
 import { ref, computed } from 'vue'
 import { ElMessage } from 'element-plus'
 import { Coin, Present, CreditCard, InfoFilled, Wallet } from '@element-plus/icons-vue'
-import axios from 'axios'
+import { createRechargeOrder } from '../api/creditsApi'
 
 const props = defineProps({
   modelValue: {
@@ -285,24 +285,14 @@ const handleRecharge = async () => {
   processing.value = true
 
   try {
-    const token = localStorage.getItem('token')
-
     // 创建充值订单
-    const response = await axios.post(
-      '/api/credits/recharge/create',
-      {
-        amount: amount,
-        payment_method: paymentMethod.value
-      },
-      {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      }
-    )
+    const response = await createRechargeOrder({
+      amount,
+      payment_method: paymentMethod.value
+    })
 
-    if (response.data.success) {
-      const order = response.data.data
+    if (response.success) {
+      const order = response.data
 
       ElMessage.info('正在跳转到支付页面...')
 
@@ -320,7 +310,7 @@ const handleRecharge = async () => {
     }
   } catch (error) {
     console.error('创建充值订单失败:', error)
-    ElMessage.error(error.response?.data?.error || '创建订单失败，请稍后重试')
+    ElMessage.error(error.message || '创建订单失败，请稍后重试')
   } finally {
     processing.value = false
   }

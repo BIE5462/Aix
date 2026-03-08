@@ -1,57 +1,16 @@
-import axios from 'axios'
-import { clearAllUserCache } from '../utils/cacheUtils'
-
-// API配置
-const API_BASE_URL = '/api'
-
-// 创建axios实例
-const apiClient = axios.create({
-  baseURL: API_BASE_URL,
-  headers: {
-    'Content-Type': 'application/json'
-  }
-})
-
-// 请求拦截器：添加认证token
-apiClient.interceptors.request.use(
-  (config) => {
-    const token = localStorage.getItem('token')
-    if (token) {
-      config.headers.Authorization = `Bearer ${token}`
-    }
-    return config
-  },
-  (error) => {
-    return Promise.reject(error)
-  }
-)
-
-// 响应拦截器：处理认证失败
-apiClient.interceptors.response.use(
-  (response) => {
-    return response
-  },
-  (error) => {
-    if (error.response?.status === 401) {
-      // 认证失败，清除所有用户缓存并跳转到登录页
-      clearAllUserCache()
-      window.location.href = '/login'
-    }
-    return Promise.reject(error)
-  }
-)
+import apiClient, { apiDelete, apiGet, apiPost, apiUpload, extractApiErrorMessage } from './apiClient'
 
 /**
  * 获取常用参考图列表（包括用户自己的和公共的）
  * @returns {Promise<Object>} 包含参考图列表的响应对象
  */
-export const getReferenceImages = async () => {
+export const getReferenceImages = async (params = {}) => {
   try {
-    const response = await apiClient.get('/reference-images/list')
+    const response = await apiClient.get('/reference-images/list', { params })
     return response.data
   } catch (error) {
     console.error('获取参考图列表失败:', error)
-    throw new Error(error.response?.data?.error || '获取参考图列表失败')
+    throw new Error(extractApiErrorMessage(error, '获取参考图列表失败'))
   }
 }
 
@@ -86,7 +45,7 @@ export const uploadReferenceImage = async (file, name = '', category = 'default'
     return response.data
   } catch (error) {
     console.error('上传参考图失败:', error)
-    throw new Error(error.response?.data?.error || '上传参考图失败')
+    throw new Error(extractApiErrorMessage(error, '上传参考图失败'))
   }
 }
 
@@ -123,7 +82,7 @@ export const deleteReferenceImage = async (imageId) => {
     return response.data
   } catch (error) {
     console.error('删除参考图失败:', error)
-    throw new Error(error.response?.data?.error || '删除参考图失败')
+    throw new Error(extractApiErrorMessage(error, '删除参考图失败'))
   }
 }
 
@@ -140,7 +99,7 @@ export const batchDeleteReferenceImages = async (imageIds) => {
     return response.data
   } catch (error) {
     console.error('批量删除参考图失败:', error)
-    throw new Error(error.response?.data?.error || '批量删除参考图失败')
+    throw new Error(extractApiErrorMessage(error, '批量删除参考图失败'))
   }
 }
 
@@ -155,7 +114,7 @@ export const getReferenceImageById = async (imageId) => {
     return response.data
   } catch (error) {
     console.error('获取参考图详情失败:', error)
-    throw new Error(error.response?.data?.error || '获取参考图详情失败')
+    throw new Error(extractApiErrorMessage(error, '获取参考图详情失败'))
   }
 }
 
@@ -171,7 +130,7 @@ export const updateReferenceImage = async (imageId, updateData) => {
     return response.data
   } catch (error) {
     console.error('更新参考图失败:', error)
-    throw new Error(error.response?.data?.error || '更新参考图失败')
+    throw new Error(extractApiErrorMessage(error, '更新参考图失败'))
   }
 }
 
@@ -185,9 +144,25 @@ export const getReferenceImageCategories = async () => {
     return response.data
   } catch (error) {
     console.error('获取分类列表失败:', error)
-    throw new Error(error.response?.data?.error || '获取分类列表失败')
+    throw new Error(extractApiErrorMessage(error, '获取分类列表失败'))
   }
 }
+
+export const getReferenceImagesRoot = () => apiGet('/reference-images')
+
+export const uploadReferenceImages = (formData) => apiUpload('/reference-images', formData)
+
+export const createReferenceImageCategory = (payload) => apiPost('/reference-images/categories', payload)
+
+export const deleteReferenceImageCategory = (categoryId) => apiDelete(`/reference-images/categories/${categoryId}`)
+
+export const moveReferenceImagesToCategory = (payload) => apiPost('/reference-images/move-to-category', payload)
+
+export const removeReferenceImagesFromCategory = (payload) => apiPost('/reference-images/remove-from-category', payload)
+
+export const deleteReferenceImagesBatchByIds = (imageIds) => apiDelete('/reference-images/batch', {
+  data: { imageIds }
+})
 
 /**
  * 检查文件是否已上传（通过本地缓存）

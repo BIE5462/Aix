@@ -240,6 +240,7 @@ import { ref, computed, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { User, Picture, Calendar, Connection, Search, Refresh } from '@element-plus/icons-vue'
 import AdminTextModelsManager from './AdminTextModelsManager.vue'
+import { deleteAdminUser, getAdminRecords, getAdminStats, getAdminUsers, toggleAdminUserStatus } from '../api/adminApi'
 
 const props = defineProps({
   currentUser: {
@@ -294,17 +295,7 @@ const formatDate = (dateString) => {
 // 加载统计数据
 const loadStats = async () => {
   try {
-    const response = await fetch('/api/admin/stats', {
-      headers: {
-        'Authorization': `Bearer ${localStorage.getItem('token')}`
-      }
-    })
-    
-    if (!response.ok) {
-      throw new Error('获取统计数据失败')
-    }
-    
-    const result = await response.json()
+    const result = await getAdminStats()
     if (result.success) {
       stats.value = result.stats
     }
@@ -318,17 +309,10 @@ const loadStats = async () => {
 const loadUsers = async () => {
   usersLoading.value = true
   try {
-    const response = await fetch(`/api/admin/users?page=${currentPage.value}&pageSize=${pageSize.value}`, {
-      headers: {
-        'Authorization': `Bearer ${localStorage.getItem('token')}`
-      }
+    const result = await getAdminUsers({
+      page: currentPage.value,
+      pageSize: pageSize.value
     })
-    
-    if (!response.ok) {
-      throw new Error('获取用户列表失败')
-    }
-    
-    const result = await response.json()
     if (result.success) {
       users.value = result.users
       totalUsers.value = result.pagination.total
@@ -345,22 +329,11 @@ const loadUsers = async () => {
 const loadRecords = async () => {
   recordsLoading.value = true
   try {
-    let url = `/api/admin/records?page=${recordCurrentPage.value}&pageSize=${recordPageSize.value}`
-    if (recordFilter.value.userId) {
-      url += `&userId=${recordFilter.value.userId}`
-    }
-    
-    const response = await fetch(url, {
-      headers: {
-        'Authorization': `Bearer ${localStorage.getItem('token')}`
-      }
+    const result = await getAdminRecords({
+      page: recordCurrentPage.value,
+      pageSize: recordPageSize.value,
+      userId: recordFilter.value.userId
     })
-    
-    if (!response.ok) {
-      throw new Error('获取生成记录失败')
-    }
-    
-    const result = await response.json()
     if (result.success) {
       records.value = result.records
       totalRecords.value = result.pagination.total
@@ -380,20 +353,8 @@ const toggleUserStatus = async (user) => {
     await ElMessageBox.confirm(`确定要${action}用户 ${user.username} 吗？`, '确认操作', {
       type: 'warning'
     })
-    
-    const response = await fetch(`/api/admin/users/${user.id}/toggle-status`, {
-      method: 'PUT',
-      headers: {
-        'Authorization': `Bearer ${localStorage.getItem('token')}`,
-        'Content-Type': 'application/json'
-      }
-    })
-    
-    if (!response.ok) {
-      throw new Error(`${action}用户失败`)
-    }
-    
-    const result = await response.json()
+
+    const result = await toggleAdminUserStatus(user.id)
     if (result.success) {
       ElMessage.success(`用户已${action}`)
       loadUsers()
@@ -411,19 +372,8 @@ const deleteUser = async (user) => {
     await ElMessageBox.confirm(`确定要删除用户 ${user.username} 吗？此操作不可恢复！`, '确认删除', {
       type: 'error'
     })
-    
-    const response = await fetch(`/api/admin/users/${user.id}`, {
-      method: 'DELETE',
-      headers: {
-        'Authorization': `Bearer ${localStorage.getItem('token')}`
-      }
-    })
-    
-    if (!response.ok) {
-      throw new Error('删除用户失败')
-    }
-    
-    const result = await response.json()
+
+    const result = await deleteAdminUser(user.id)
     if (result.success) {
       ElMessage.success('用户已删除')
       loadUsers()

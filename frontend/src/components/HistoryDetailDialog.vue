@@ -174,6 +174,7 @@ import { ref, computed, watch, inject } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { DocumentCopy, Upload, Download, FolderAdd, Edit, Delete, Warning } from '@element-plus/icons-vue'
 import { deleteHistory } from '../api/imageApi'
+import { fetchProxyBlob, triggerBlobDownload } from '../api/downloadApi'
 
 const props = defineProps({
   modelValue: {
@@ -373,34 +374,19 @@ const handleDownloadImage = async () => {
     }
 
     let response
+    let blob
     if (needsProxyDownload(downloadUrl)) {
-      response = await fetch(`/api/proxy-image?url=${encodeURIComponent(downloadUrl)}`, {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
-        }
-      })
+      blob = await fetchProxyBlob(downloadUrl)
     } else {
       response = await fetch(downloadUrl)
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`)
+      }
+      blob = await response.blob()
     }
 
-    if (!response.ok) {
-      throw new Error(`HTTP ${response.status}`)
-    }
-
-    const blob = await response.blob()
-    const blobUrl = URL.createObjectURL(blob)
     const extension = blob.type?.split('/')[1] || 'png'
-    const link = document.createElement('a')
-    link.href = blobUrl
-    link.download = `history-image-${selectedImageIndex.value + 1}-${Date.now()}.${extension}`
-    link.target = '_self'
-    document.body.appendChild(link)
-    link.click()
-    document.body.removeChild(link)
-
-    setTimeout(() => {
-      URL.revokeObjectURL(blobUrl)
-    }, 100)
+    triggerBlobDownload(blob, `history-image-${selectedImageIndex.value + 1}-${Date.now()}.${extension}`)
 
     ElMessage.success('图片下载成功')
   } catch (error) {
@@ -420,34 +406,19 @@ const handleDownloadVideo = async () => {
     }
 
     let response
+    let blob
     if (needsProxyDownload(videoUrl)) {
-      response = await fetch(`/api/proxy-image?url=${encodeURIComponent(videoUrl)}`, {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
-        }
-      })
+      blob = await fetchProxyBlob(videoUrl)
     } else {
       response = await fetch(videoUrl)
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`)
+      }
+      blob = await response.blob()
     }
 
-    if (!response.ok) {
-      throw new Error(`HTTP ${response.status}`)
-    }
-
-    const blob = await response.blob()
-    const blobUrl = URL.createObjectURL(blob)
     const extension = blob.type?.split('/')[1] || 'mp4'
-    const link = document.createElement('a')
-    link.href = blobUrl
-    link.download = `history-video-${Date.now()}.${extension}`
-    link.target = '_self'
-    document.body.appendChild(link)
-    link.click()
-    document.body.removeChild(link)
-
-    setTimeout(() => {
-      URL.revokeObjectURL(blobUrl)
-    }, 100)
+    triggerBlobDownload(blob, `history-video-${Date.now()}.${extension}`)
 
     ElMessage.success('视频下载成功')
   } catch (error) {

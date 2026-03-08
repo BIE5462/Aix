@@ -1,4 +1,4 @@
-import apiClient from './apiClient'
+import apiClient, { extractApiErrorMessage } from './apiClient'
 
 /**
  * 生成视频API调用 - 符合Seedance API规范
@@ -75,8 +75,7 @@ export const generateVideo = async (params) => {
 
     const response = await apiClient.post('/video/generate', formData, {
       headers: {
-        'Content-Type': 'multipart/form-data',
-        'Authorization': `Bearer ${localStorage.getItem('token')}`
+        'Content-Type': 'multipart/form-data'
       }
     })
     
@@ -84,7 +83,7 @@ export const generateVideo = async (params) => {
     return response.data
   } catch (error) {
     console.error('生成视频API调用失败:', error)
-    throw new Error(error.response?.data?.error || '生成视频失败')
+    throw new Error(extractApiErrorMessage(error, '生成视频失败'))
   }
 }
 
@@ -95,16 +94,12 @@ export const generateVideo = async (params) => {
  */
 export const getVideoResult = async (taskId) => {
   try {
-    const response = await apiClient.get(`/video/result/${taskId}`, {
-      headers: {
-        'Authorization': `Bearer ${localStorage.getItem('token')}`
-      }
-    })
+    const response = await apiClient.get(`/video/result/${taskId}`)
     
     return response.data
   } catch (error) {
     console.error('查询视频生成结果失败:', error)
-    throw new Error(error.response?.data?.error || '查询视频生成结果失败')
+    throw new Error(extractApiErrorMessage(error, '查询视频生成结果失败'))
   }
 }
 
@@ -125,16 +120,13 @@ export const getVideoHistory = async (params = {}) => {
         page,
         pageSize,
         searchKeyword
-      },
-      headers: {
-        'Authorization': `Bearer ${localStorage.getItem('token')}`
       }
     })
     
     return response.data
   } catch (error) {
     console.error('获取视频生成历史失败:', error)
-    throw new Error(error.response?.data?.error || '获取视频生成历史失败')
+    throw new Error(extractApiErrorMessage(error, '获取视频生成历史失败'))
   }
 }
 
@@ -145,16 +137,12 @@ export const getVideoHistory = async (params = {}) => {
  */
 export const getVideoGenerationStatus = async (taskId) => {
   try {
-    const response = await apiClient.get(`/video/status/${taskId}`, {
-      headers: {
-        'Authorization': `Bearer ${localStorage.getItem('token')}`
-      }
-    })
+    const response = await apiClient.get(`/video/status/${taskId}`)
     
     return response.data
   } catch (error) {
     console.error('获取视频生成状态失败:', error)
-    throw new Error(error.response?.data?.error || '获取视频生成状态失败')
+    throw new Error(extractApiErrorMessage(error, '获取视频生成状态失败'))
   }
 }
 
@@ -164,11 +152,7 @@ export const getVideoGenerationStatus = async (taskId) => {
  */
 export const getVideoModels = async () => {
   try {
-    const response = await apiClient.get('/video/models', {
-      headers: {
-        'Authorization': `Bearer ${localStorage.getItem('token')}`
-      }
-    })
+    const response = await apiClient.get('/video/models')
 
     return response.data
   } catch (error) {

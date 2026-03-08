@@ -96,6 +96,7 @@
 <script setup>
 import { ref, reactive, watch, computed } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import { createCommonPrompt, deleteCommonPrompt, getCommonPrompts, updateCommonPrompt } from '../api/promptsApi'
 
 const props = defineProps({
   modelValue: {
@@ -190,24 +191,10 @@ const addPrompt = async () => {
 
 // 添加提示词到服务器
 const addPromptToServer = async () => {
-  const token = localStorage.getItem('token')
-  
-  const response = await fetch('/api/prompts/common', {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${token}`,
-      'Content-Type': 'application/json'
-    },
-    body: JSON.stringify({
-      name: form.name.trim(),
-      content: form.content.trim()
-    })
+  await createCommonPrompt({
+    name: form.name.trim(),
+    content: form.content.trim()
   })
-  
-  if (!response.ok) {
-    const error = await response.json()
-    throw new Error(error.message || '添加失败')
-  }
   
   // 重新加载提示词列表
   await loadPrompts()
@@ -276,24 +263,10 @@ const updatePrompt = async () => {
 
 // 更新提示词到服务器
 const updatePromptToServer = async () => {
-  const token = localStorage.getItem('token')
-  
-  const response = await fetch(`/api/prompts/common/${editingPrompt.value.id}`, {
-    method: 'PUT',
-    headers: {
-      'Authorization': `Bearer ${token}`,
-      'Content-Type': 'application/json'
-    },
-    body: JSON.stringify({
-      name: form.name.trim(),
-      content: form.content.trim()
-    })
+  await updateCommonPrompt(editingPrompt.value.id, {
+    name: form.name.trim(),
+    content: form.content.trim()
   })
-  
-  if (!response.ok) {
-    const error = await response.json()
-    throw new Error(error.message || '更新失败')
-  }
   
   // 重新加载提示词列表
   await loadPrompts()
@@ -344,20 +317,7 @@ const deletePrompt = async (id) => {
 
 // 从服务器删除提示词
 const deletePromptFromServer = async (id) => {
-  const token = localStorage.getItem('token')
-  
-  const response = await fetch(`/api/prompts/common/${id}`, {
-    method: 'DELETE',
-    headers: {
-      'Authorization': `Bearer ${token}`,
-      'Content-Type': 'application/json'
-    }
-  })
-  
-  if (!response.ok) {
-    const error = await response.json()
-    throw new Error(error.message || '删除失败')
-  }
+  await deleteCommonPrompt(id)
   
   // 重新加载提示词列表
   await loadPrompts()
@@ -404,27 +364,16 @@ const loadPrompts = async () => {
       return
     }
 
-    const response = await fetch('/api/prompts/common', {
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json'
-      }
-    })
-
-    if (response.ok) {
-      const result = await response.json()
-      if (result.success) {
-        prompts.value = result.data.map(prompt => ({
-          id: prompt.id.toString(),
-          name: prompt.title || prompt.name, // 优先使用title字段，兼容name字段
-          content: prompt.content,
-          createdAt: new Date(prompt.created_at).getTime()
-        }))
-      } else {
-        throw new Error(result.message || '加载失败')
-      }
+    const result = await getCommonPrompts()
+    if (result.success) {
+      prompts.value = result.data.map(prompt => ({
+        id: prompt.id.toString(),
+        name: prompt.title || prompt.name,
+        content: prompt.content,
+        createdAt: new Date(prompt.created_at).getTime()
+      }))
     } else {
-      throw new Error('网络请求失败')
+      throw new Error(result.message || '加载失败')
     }
   } catch (error) {
     console.error('从服务器加载常用提示词失败:', error)

@@ -124,8 +124,8 @@
 import { ref, onMounted, onUnmounted, watch } from 'vue'
 import { HomeFilled, Brush, MagicStick, Picture, User, SwitchButton, Setting, Coin, MoreFilled } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
-import axios from 'axios'
 import GlassButton from './common/GlassButton.vue'
+import { getCreditsBalance } from '../api/creditsApi'
 
 // Props
 const props = defineProps({
@@ -155,15 +155,10 @@ const fetchUserCredits = async () => {
   if (!props.isLoggedIn) return
 
   try {
-    const token = localStorage.getItem('token')
-    const response = await axios.get('/api/credits/balance', {
-      headers: {
-        'Authorization': `Bearer ${token}`
-      }
-    })
+    const response = await getCreditsBalance()
 
-    if (response.data.success) {
-      userCredits.value = Math.floor(response.data.data.balance)
+    if (response.success) {
+      userCredits.value = Math.floor(response.data.balance)
     }
   } catch (error) {
     console.error('获取积分失败:', error)

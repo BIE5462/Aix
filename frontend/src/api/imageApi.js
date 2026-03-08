@@ -1,45 +1,4 @@
-import axios from 'axios'
-import { clearAllUserCache } from '../utils/cacheUtils'
-
-// API配置
-const API_BASE_URL = '/api'
-
-// 创建axios实例
-const apiClient = axios.create({
-  baseURL: API_BASE_URL,
-  headers: {
-    'Content-Type': 'application/json'
-  }
-})
-
-// 请求拦截器，添加认证头
-apiClient.interceptors.request.use(
-  (config) => {
-    const token = localStorage.getItem('token')
-    if (token) {
-      config.headers.Authorization = `Bearer ${token}`
-    }
-    return config
-  },
-  (error) => {
-    return Promise.reject(error)
-  }
-)
-
-// 响应拦截器，处理认证错误
-apiClient.interceptors.response.use(
-  (response) => {
-    return response
-  },
-  (error) => {
-    if (error.response?.status === 401) {
-      // 认证失败，清除所有用户缓存并跳转到登录页
-      clearAllUserCache()
-      window.location.reload()
-    }
-    return Promise.reject(error)
-  }
-)
+import apiClient, { extractApiErrorMessage } from './apiClient'
 
 /**
  * 生成图片API调用（通过后端服务）
@@ -93,8 +52,7 @@ export const generateImages = async (params) => {
 
     const response = await apiClient.post('/generate', formData, {
       headers: {
-        'Content-Type': 'multipart/form-data',
-        'Authorization': `Bearer ${localStorage.getItem('token')}`
+        'Content-Type': 'multipart/form-data'
       }
     })
     
@@ -102,7 +60,7 @@ export const generateImages = async (params) => {
     return response.data
   } catch (error) {
     console.error('生成图片API调用失败:', error)
-    throw new Error(error.response?.data?.error || '生成图片失败')
+    throw new Error(extractApiErrorMessage(error, '生成图片失败'))
   }
 }
 
@@ -133,7 +91,7 @@ export const generateImageToImage = async (params) => {
     return response.data
   } catch (error) {
     console.error('图生图API调用失败:', error)
-    throw new Error(error.response?.data?.error?.message || '图生图生成失败')
+    throw new Error(extractApiErrorMessage(error, '图生图生成失败'))
   }
 }
 
@@ -148,7 +106,7 @@ export const getGenerationResult = async (taskId) => {
     return response.data
   } catch (error) {
     console.error('查询生成结果失败:', error)
-    throw new Error(error.response?.data?.error || '查询生成结果失败')
+    throw new Error(extractApiErrorMessage(error, '查询生成结果失败'))
   }
 }
 
@@ -166,7 +124,7 @@ export const getHistory = async (params = {}) => {
     return response.data
   } catch (error) {
     console.error('获取历史记录失败:', error)
-    throw new Error(error.response?.data?.error || '获取历史记录失败')
+    throw new Error(extractApiErrorMessage(error, '获取历史记录失败'))
   }
 }
 
@@ -181,7 +139,7 @@ export const deleteHistory = async (id) => {
     return response.data
   } catch (error) {
     console.error('删除历史记录失败:', error)
-    throw new Error(error.response?.data?.error || '删除历史记录失败')
+    throw new Error(extractApiErrorMessage(error, '删除历史记录失败'))
   }
 }
 
@@ -195,7 +153,7 @@ export const clearHistory = async () => {
     return response.data
   } catch (error) {
     console.error('清空历史记录失败:', error)
-    throw new Error(error.response?.data?.error || '清空历史记录失败')
+    throw new Error(extractApiErrorMessage(error, '清空历史记录失败'))
   }
 }
 
@@ -209,6 +167,6 @@ export const getAvailableModels = async () => {
     return response.data
   } catch (error) {
     console.error('获取模型列表失败:', error)
-    throw new Error(error.response?.data?.message || '获取模型列表失败')
+    throw new Error(extractApiErrorMessage(error, '获取模型列表失败'))
   }
 }

@@ -318,6 +318,17 @@
 <script setup>
 import LoadingCard from './LoadingCard.vue'
 import { ref, onMounted, computed } from 'vue'
+import {
+  createReferenceImageCategory,
+  deleteReferenceImage,
+  deleteReferenceImageCategory,
+  deleteReferenceImagesBatchByIds,
+  getReferenceImageCategories,
+  getReferenceImagesRoot,
+  moveReferenceImagesToCategory,
+  removeReferenceImagesFromCategory,
+  uploadReferenceImages
+} from '../api/referenceImageApi'
 
 const emit = defineEmits(['close', 'select-images'])
 
@@ -399,18 +410,8 @@ const fetchReferenceImages = async () => {
       console.log('未登录，无法获取参考图')
       return
     }
-
-    const response = await fetch('/api/reference-images', {
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json'
-      }
-    })
-    if (response.ok) {
-      const data = await response.json()
-      // 后端返回格式：{ images: [...] } 或直接返回数组
-      referenceImages.value = Array.isArray(data) ? data : (data.images || [])
-    }
+    const data = await getReferenceImagesRoot()
+    referenceImages.value = Array.isArray(data) ? data : (data.images || [])
   } catch (error) {
     console.error('获取参考图失败:', error)
   } finally {
@@ -424,33 +425,25 @@ const fetchCategories = async () => {
     const token = localStorage.getItem('token')
     if (!token) return
 
-    const response = await fetch('/api/reference-images/categories', {
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json'
-      }
-    })
-    if (response.ok) {
-      const data = await response.json()
-      const userCats = Array.isArray(data?.categories) ? data.categories : (Array.isArray(data) ? data : [])
-      const mappedCategories = userCats
-        .map(category => {
-          if (typeof category === 'string') {
-            const name = String(category || '').trim()
-            return name ? { id: name, name } : null
-          }
+    const data = await getReferenceImageCategories()
+    const userCats = Array.isArray(data?.categories) ? data.categories : (Array.isArray(data) ? data : [])
+    const mappedCategories = userCats
+      .map(category => {
+        if (typeof category === 'string') {
+          const name = String(category || '').trim()
+          return name ? { id: name, name } : null
+        }
 
-          const name = String(category?.name || '').trim()
-          if (!name) return null
+        const name = String(category?.name || '').trim()
+        if (!name) return null
 
-          return { id: category.id ?? name, name }
-        })
-        .filter(Boolean)
-      categories.value = [
-        { id: 'all', name: '全部' },
-        ...mappedCategories
-      ]
-    }
+        return { id: category.id ?? name, name }
+      })
+      .filter(Boolean)
+    categories.value = [
+      { id: 'all', name: '全部' },
+      ...mappedCategories
+    ]
   } catch (error) {
     console.error('获取分类失败:', error)
   }
@@ -490,28 +483,16 @@ const addCategory = async () => {
       return
     }
 
-    const response = await fetch('/api/reference-images/categories', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({ name: newCategoryName.value.trim() })
-    })
-
-    if (response.ok) {
-      const data = await response.json()
+    const data = await createReferenceImageCategory({ name: newCategoryName.value.trim() })
+    if (data) {
       categories.value.push(data.category || data)
       newCategoryName.value = ''
       showAddCategoryDialog.value = false
       console.log('分类添加成功')
-    } else {
-      const error = await response.json()
-      alert('添加分类失败: ' + (error.error || error.message))
     }
   } catch (error) {
     console.error('添加分类失败:', error)
-    alert('添加分类失败，请重试')
+    alert('添加分类失败: ' + (error.message || '请重试'))
   }
 }
 
@@ -526,15 +507,9 @@ const deleteCategory = async (categoryId) => {
       return
     }
 
-    const response = await fetch(`/api/reference-images/categories/${categoryId}`, {
-      method: 'DELETE',
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json'
-      }
-    })
+    await deleteReferenceImageCategory(categoryId)
 
-    if (response.ok) {
+    {
       // 将分类中的图片移动到全部分类（移除分类）
       await moveImagesToAllCategory(categoryId)
       
@@ -547,13 +522,10 @@ const deleteCategory = async (categoryId) => {
       }
       
       console.log('分类删除成功')
-    } else {
-      const error = await response.json()
-      alert('删除分类失败: ' + (error.error || error.message))
     }
   } catch (error) {
     console.error('删除分类失败:', error)
-    alert('删除分类失败，请重试')
+    alert('删除分类失败: ' + (error.message || '请重试'))
   }
 }
 
@@ -567,22 +539,12 @@ const moveImagesToAllCategory = async (categoryId) => {
 
     if (imagesToMove.length === 0) return
 
-    const response = await fetch('/api/reference-images/move-to-category', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({ 
-        imageIds: imagesToMove.map(img => img.id),
-        categoryId: null // 移除分类，图片将显示在全部中
-      })
+    await moveReferenceImagesToCategory({
+      imageIds: imagesToMove.map(img => img.id),
+      categoryId: null
     })
 
-    if (response.ok) {
-      // 重新获取数据以确保数据一致性
-      await fetchReferenceImages()
-    }
+    await fetchReferenceImages()
   } catch (error) {
     console.error('移动图片失败:', error)
   }
@@ -742,16 +704,8 @@ const processUploadQueue = async () => {
 
     // 注意：这里不传 is_prompt_reference 参数，默认为0（常用参考图）
 
-    const response = await fetch('/api/reference-images', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${token}`
-      },
-      body: formData
-    })
-
-    if (response.ok) {
-      const result = await response.json()
+    const result = await uploadReferenceImages(formData)
+    if (result) {
       console.log('上传成功:', result.message)
 
       // 显示上传结果
@@ -772,14 +726,10 @@ const processUploadQueue = async () => {
 
       // 触发 images-updated 事件，通知父组件刷新外部快速使用区域
       emit('images-updated')
-    } else {
-      const error = await response.json()
-      console.error('上传失败:', error.message)
-      alert('上传失败: ' + error.message)
     }
   } catch (error) {
     console.error('上传失败:', error)
-    alert('上传失败，请重试')
+    alert('上传失败: ' + (error.message || '请重试'))
   }
 
   // 如果队列为空，重置上传分类ID
@@ -825,24 +775,12 @@ const deleteImage = async (imageId) => {
       return
     }
 
-    const response = await fetch(`/api/reference-images/${imageId}`, {
-      method: 'DELETE',
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json'
-      }
-    })
-
-    if (response.ok) {
-      referenceImages.value = referenceImages.value.filter(img => img.id !== imageId)
-      console.log('删除成功')
-    } else {
-      const error = await response.json()
-      alert('删除失败: ' + error.message)
-    }
+    await deleteReferenceImage(imageId)
+    referenceImages.value = referenceImages.value.filter(img => img.id !== imageId)
+    console.log('删除成功')
   } catch (error) {
     console.error('删除失败:', error)
-    alert('删除失败，请重试')
+    alert('删除失败: ' + (error.message || '请重试'))
   }
 }
 
@@ -881,17 +819,9 @@ const removeFromCategory = async () => {
   
   try {
     const token = localStorage.getItem('token')
-    const response = await fetch('/api/reference-images/remove-from-category', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({ imageIds: selectedImages.value })
-    })
-    
-    if (response.ok) {
-      const result = await response.json()
+    const result = await removeReferenceImagesFromCategory({ imageIds: selectedImages.value })
+
+    if (result) {
       console.log('移出分类成功:', result.message)
       
       // 更新本地数据
@@ -904,13 +834,10 @@ const removeFromCategory = async () => {
       
       selectedImages.value = []
       alert(result.message)
-    } else {
-      const error = await response.json()
-      alert('移出分类失败: ' + error.error)
     }
   } catch (error) {
     console.error('移出分类失败:', error)
-    alert('移出分类失败，请重试')
+    alert('移出分类失败: ' + (error.message || '请重试'))
   }
 }
 
@@ -1013,29 +940,16 @@ const deleteSelected = async () => {
       return
     }
 
-    const response = await fetch('/api/reference-images/batch', {
-      method: 'DELETE',
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({ imageIds: selectedImages.value })
-    })
-
-    if (response.ok) {
-      referenceImages.value = referenceImages.value.filter(
-        img => !selectedImages.value.includes(img.id)
-      )
-      selectedImages.value = []
-      selectMode.value = false
-      console.log('批量删除成功')
-    } else {
-      const error = await response.json()
-      alert('删除失败: ' + error.message)
-    }
+    await deleteReferenceImagesBatchByIds(selectedImages.value)
+    referenceImages.value = referenceImages.value.filter(
+      img => !selectedImages.value.includes(img.id)
+    )
+    selectedImages.value = []
+    selectMode.value = false
+    console.log('批量删除成功')
   } catch (error) {
     console.error('批量删除失败:', error)
-    alert('删除失败，请重试')
+    alert('删除失败: ' + (error.message || '请重试'))
   }
 }
 
@@ -1085,31 +999,18 @@ const moveSingleImage = async () => {
       return
     }
 
-    const response = await fetch('/api/reference-images/move-to-category', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({ 
-        imageIds: [currentMovingImage.value.id],
-        categoryId: singleImageTargetCategory.value || null
-      })
+    await moveReferenceImagesToCategory({
+      imageIds: [currentMovingImage.value.id],
+      categoryId: singleImageTargetCategory.value || null
     })
 
-    if (response.ok) {
-      // 重新获取数据以确保数据一致性
-      await fetchReferenceImages()
-      showMoveImageDialog.value = false
-      currentMovingImage.value = null
-      console.log('图片移动成功')
-    } else {
-      const error = await response.json()
-      alert('移动图片失败: ' + error.message)
-    }
+    await fetchReferenceImages()
+    showMoveImageDialog.value = false
+    currentMovingImage.value = null
+    console.log('图片移动成功')
   } catch (error) {
     console.error('移动图片失败:', error)
-    alert('移动图片失败，请重试')
+    alert('移动图片失败: ' + (error.message || '请重试'))
   }
 }
 
@@ -1124,32 +1025,19 @@ const moveSelectedToCategory = async () => {
       return
     }
 
-    const response = await fetch('/api/reference-images/move-to-category', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({ 
-        imageIds: selectedImages.value,
-        categoryId: targetCategoryId.value || null
-      })
+    await moveReferenceImagesToCategory({
+      imageIds: selectedImages.value,
+      categoryId: targetCategoryId.value || null
     })
 
-    if (response.ok) {
-      // 重新获取数据以确保数据一致性
-      await fetchReferenceImages()
-      selectedImages.value = []
-      selectMode.value = false
-      showMoveToCategoryDialog.value = false
-      console.log('图片移动成功')
-    } else {
-      const error = await response.json()
-      alert('移动图片失败: ' + error.message)
-    }
+    await fetchReferenceImages()
+    selectedImages.value = []
+    selectMode.value = false
+    showMoveToCategoryDialog.value = false
+    console.log('图片移动成功')
   } catch (error) {
     console.error('移动图片失败:', error)
-    alert('移动图片失败，请重试')
+    alert('移动图片失败: ' + (error.message || '请重试'))
   }
 }
 

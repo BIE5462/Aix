@@ -325,11 +325,11 @@ const userDataService = {
     // 添加参考图（支持OSS）
     async addReferenceImage(userId, imageData, categoryId = null, isPromptReference = 0) {
       try {
-        const { 
-          filename, 
-          originalName, 
-          filePath, 
-          fileSize, 
+        const {
+          filename,
+          originalName,
+          filePath,
+          fileSize,
           mimeType,
           ossUrl,
           ossKey,
@@ -337,22 +337,26 @@ const userDataService = {
           ossThumbnailKey,
           compressedSize
         } = imageData;
-        
+
+        const name = originalName || filename || 'reference_image';
+        const url = ossUrl || (filename ? `/uploads/${filename}` : filePath || '');
+
         const [result] = await pool.execute(
-          'INSERT INTO reference_images (user_id, filename, original_name, file_path, file_size, mime_type, oss_url, oss_key, oss_thumbnail_url, oss_thumbnail_key, compressed_size, is_prompt_reference, category_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-          [userId, filename, originalName, filePath, fileSize, mimeType, ossUrl, ossKey, ossThumbnailUrl, ossThumbnailKey, compressedSize, isPromptReference, categoryId]
+          'INSERT INTO reference_images (user_id, name, url, filename, original_name, file_path, file_size, mime_type, oss_url, oss_key, oss_thumbnail_url, oss_thumbnail_key, compressed_size, is_prompt_reference, category_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+          [userId, name, url, filename, originalName, filePath, fileSize, mimeType, ossUrl, ossKey, ossThumbnailUrl, ossThumbnailKey, compressedSize, isPromptReference, categoryId]
         );
-        
+
         return {
           success: true,
           image: {
             id: result.insertId,
+            name,
             filename,
             originalName,
             filePath,
             fileSize,
             mimeType,
-            url: ossUrl || `/uploads/${filename}`,
+            url,
             thumbnailUrl: ossThumbnailUrl,
             ossKey,
             ossThumbnailKey,

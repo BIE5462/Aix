@@ -187,6 +187,7 @@
 <script setup>
 import { ref, computed, watch, nextTick, reactive } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import { createUserPrompt, deleteUserPrompt, getUserPrompts, updateUserPrompt } from '../api/promptsApi'
 import LoadingCard from './LoadingCard.vue'
 import { uploadToOSS } from '@/api/ossApi'
 
@@ -310,20 +311,7 @@ const deletePrompt = async (id) => {
 
 // 从服务器删除提示词
 const deletePromptFromServer = async (id) => {
-  const token = localStorage.getItem('token')
-  
-  const response = await fetch(`/api/prompts/${id}`, {
-    method: 'DELETE',
-    headers: {
-      'Authorization': `Bearer ${token}`,
-      'Content-Type': 'application/json'
-    }
-  })
-  
-  if (!response.ok) {
-    const error = await response.json()
-    throw new Error(error.message || '删除失败')
-  }
+  await deleteUserPrompt(id)
   
   // 重新加载提示词列表
   await loadPrompts()
@@ -538,29 +526,9 @@ const savePromptToServer = async () => {
     }
   }
 
-  let url = '/api/prompts'
-  let method = 'POST'
-
-  if (editingPrompt.value) {
-    // 编辑模式
-    url = `/api/prompts/${editingPrompt.value.id}`
-    method = 'PUT'
-  }
-
-  const response = await fetch(url, {
-    method: method,
-    headers: {
-      'Authorization': `Bearer ${token}`
-    },
-    body: formData
-  })
-
-  if (!response.ok) {
-    const error = await response.json()
-    throw new Error(error.message || '保存失败')
-  }
-
-  const result = await response.json()
+  const result = editingPrompt.value
+    ? await updateUserPrompt(editingPrompt.value.id, formData)
+    : await createUserPrompt(formData)
   console.log('[PromptManager] 保存成功:', result)
 
   // 重新加载提示词列表
@@ -619,30 +587,20 @@ const loadPrompts = async () => {
       return
     }
 
-    const response = await fetch('/api/prompts', {
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json'
-      }
-    })
+    const result = await getUserPrompts()
 
-    if (response.ok) {
-      const result = await response.json()
-      if (result.success) {
-        prompts.value = result.data.map(prompt => ({
-          id: prompt.id.toString(),
-          title: prompt.title,
-          content: prompt.content,
-          referenceImage: prompt.reference_image_url || '',
-          coverImageUrl: prompt.cover_image_url || '',
-          createdAt: new Date(prompt.created_at).getTime(),
-          updatedAt: new Date(prompt.updated_at).getTime()
-        }))
-      } else {
-        throw new Error(result.message || '加载失败')
-      }
+    if (result.success) {
+      prompts.value = result.data.map(prompt => ({
+        id: prompt.id.toString(),
+        title: prompt.title,
+        content: prompt.content,
+        referenceImage: prompt.reference_image_url || '',
+        coverImageUrl: prompt.cover_image_url || '',
+        createdAt: new Date(prompt.created_at).getTime(),
+        updatedAt: new Date(prompt.updated_at).getTime()
+      }))
     } else {
-      throw new Error('网络请求失败')
+      throw new Error(result.message || '加载失败')
     }
   } catch (error) {
     console.error('从服务器加载提示词失败:', error)

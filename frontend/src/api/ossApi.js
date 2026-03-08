@@ -1,5 +1,3 @@
-import axios from 'axios'
-
 // OSS配置
 const OSS_CONFIG = {
   region: 'oss-cn-beijing',

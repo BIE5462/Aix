@@ -126,14 +126,16 @@ const initDatabase = async () => {
         oss_thumbnail_key VARCHAR(500) NULL COMMENT 'OSS缩略图key',
         compressed_size INT NULL COMMENT '压缩后文件大小(字节)',
         is_prompt_reference TINYINT(1) DEFAULT 0 COMMENT '是否为提示词参考图',
+        category_id INT NULL COMMENT '分类ID',
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
         FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
         INDEX idx_user_id (user_id),
+        INDEX idx_category_id (category_id),
         INDEX idx_created_at (created_at)
       )
     `);
-    
+
     // 为现有 reference_images 表添加缺失列
     const referenceImagesColumns = [
       { name: 'filename', def: "VARCHAR(255) NULL COMMENT '文件名'" },
@@ -146,7 +148,8 @@ const initDatabase = async () => {
       { name: 'oss_thumbnail_url', def: "VARCHAR(500) NULL COMMENT 'OSS缩略图URL'" },
       { name: 'oss_thumbnail_key', def: "VARCHAR(500) NULL COMMENT 'OSS缩略图key'" },
       { name: 'compressed_size', def: "INT NULL COMMENT '压缩后文件大小(字节)'" },
-      { name: 'is_prompt_reference', def: "TINYINT(1) DEFAULT 0 COMMENT '是否为提示词参考图'" }
+      { name: 'is_prompt_reference', def: "TINYINT(1) DEFAULT 0 COMMENT '是否为提示词参考图'" },
+      { name: 'category_id', def: "INT NULL COMMENT '分类ID'" }
     ];
     for (const col of referenceImagesColumns) {
       try {
@@ -157,8 +160,28 @@ const initDatabase = async () => {
         }
       }
     }
-    
-    // 创建提示词表
+
+    try {
+      await pool.execute('ALTER TABLE reference_images ADD INDEX idx_category_id (category_id)');
+    } catch (alterError) {
+      if (alterError.code !== 'ER_DUP_KEYNAME') {
+        throw alterError;
+      }
+    }
+
+    // 创建参考图分类表
+    await pool.execute(`
+      CREATE TABLE IF NOT EXISTS reference_image_categories (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        user_id INT NOT NULL,
+        name VARCHAR(200) NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+        INDEX idx_user_id (user_id),
+        INDEX idx_created_at (created_at)
+      )
+    `);
     await pool.execute(`
       CREATE TABLE IF NOT EXISTS prompts (
         id INT AUTO_INCREMENT PRIMARY KEY,
@@ -826,17 +849,13 @@ const aiModelService = {
   // 获取所有图像模型
   async getAllModels() {
     try {
-      // 先从缓存获取
       const cached = await imageCacheService.getModelList('all');
       if (cached) {
         console.log('从缓存获取所有AI模型列表:', cached.length, '个模型');
         return cached;
       }
 
-      // 查询数据库
       const [rows] = await pool.execute('SELECT * FROM ai_models WHERE is_active = TRUE ORDER BY is_default DESC, created_at ASC');
-
-      // 缓存结果（24小时）
       await imageCacheService.cacheModelList('all', rows);
 
       return rows;
@@ -882,21 +901,40 @@ const aiModelService = {
   // 添加图像模型
   async addModel(modelData) {
     try {
-      const { name, description, api_key, base_url, is_default = false, is_active = true, provider = 'google', model_type = 'image' } = modelData;
+      const normalizedData = {
+        name: modelData.name,
+        description: modelData.description ?? null,
+        api_key: modelData.api_key,
+        base_url: modelData.base_url,
+        is_default: typeof modelData.is_default === 'boolean' ? modelData.is_default : false,
+        is_active: typeof modelData.is_active === 'boolean' ? modelData.is_active : true,
+        provider: modelData.provider ?? 'google',
+        model_type: modelData.model_type ?? 'image'
+      };
 
-      // 如果设置为默认模型，先取消其他模型的默认状态
-      if (is_default) {
+      if (!normalizedData.name || !normalizedData.api_key || !normalizedData.base_url) {
+        throw new Error('模型名称、API Key 和 Base URL 不能为空');
+      }
+
+      if (normalizedData.is_default) {
         await pool.execute('UPDATE ai_models SET is_default = FALSE');
       }
 
       const [result] = await pool.execute(
         'INSERT INTO ai_models (name, description, api_key, base_url, is_default, is_active, provider, model_type) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
-        [name, description, api_key, base_url, is_default, is_active, provider, model_type]
+        [
+          normalizedData.name,
+          normalizedData.description,
+          normalizedData.api_key,
+          normalizedData.base_url,
+          normalizedData.is_default,
+          normalizedData.is_active,
+          normalizedData.provider,
+          normalizedData.model_type
+        ]
       );
 
-      // 清除模型列表缓存
       await imageCacheService.clearModelCache();
-
       return result.insertId;
     } catch (error) {
       console.error('添加图像模型失败:', error);
@@ -907,19 +945,48 @@ const aiModelService = {
   // 更新图像模型
   async updateModel(id, modelData) {
     try {
-      const { name, description, api_key, base_url, is_default = false, is_active = true, provider = 'google', model_type = 'image' } = modelData;
+      const [rows] = await pool.execute('SELECT * FROM ai_models WHERE id = ? LIMIT 1', [id]);
+      const existingModel = rows[0];
 
-      // 如果设置为默认模型，先取消其他模型的默认状态
-      if (is_default) {
+      if (!existingModel) {
+        return false;
+      }
+
+      const hasField = (fieldName) => Object.prototype.hasOwnProperty.call(modelData, fieldName);
+      const normalizedData = {
+        name: hasField('name') ? modelData.name : existingModel.name,
+        description: hasField('description') ? (modelData.description ?? null) : existingModel.description,
+        api_key: hasField('api_key') ? modelData.api_key : existingModel.api_key,
+        base_url: hasField('base_url') ? modelData.base_url : existingModel.base_url,
+        is_default: typeof modelData.is_default === 'boolean' ? modelData.is_default : Boolean(existingModel.is_default),
+        is_active: typeof modelData.is_active === 'boolean' ? modelData.is_active : Boolean(existingModel.is_active),
+        provider: hasField('provider') ? (modelData.provider ?? 'google') : existingModel.provider,
+        model_type: hasField('model_type') ? (modelData.model_type ?? 'image') : (existingModel.model_type || 'image')
+      };
+
+      if (!normalizedData.name || !normalizedData.api_key || !normalizedData.base_url) {
+        throw new Error('模型名称、API Key 和 Base URL 不能为空');
+      }
+
+      if (normalizedData.is_default) {
         await pool.execute('UPDATE ai_models SET is_default = FALSE WHERE id != ?', [id]);
       }
 
       const [result] = await pool.execute(
         'UPDATE ai_models SET name = ?, description = ?, api_key = ?, base_url = ?, is_default = ?, is_active = ?, provider = ?, model_type = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
-        [name, description, api_key, base_url, is_default, is_active, provider, model_type, id]
+        [
+          normalizedData.name,
+          normalizedData.description,
+          normalizedData.api_key,
+          normalizedData.base_url,
+          normalizedData.is_default,
+          normalizedData.is_active,
+          normalizedData.provider,
+          normalizedData.model_type,
+          id
+        ]
       );
 
-      // 清除模型列表缓存
       if (result.affectedRows > 0) {
         await imageCacheService.clearModelCache();
       }
@@ -936,7 +1003,6 @@ const aiModelService = {
     try {
       const [result] = await pool.execute('DELETE FROM ai_models WHERE id = ?', [id]);
 
-      // 清除模型列表缓存
       if (result.affectedRows > 0) {
         await imageCacheService.clearModelCache();
       }
@@ -948,7 +1014,6 @@ const aiModelService = {
     }
   }
 };
-
 // 视频模型相关操作
 
 
@@ -967,4 +1032,5 @@ module.exports = {
   referenceImageService,
   aiModelService
 };
+
 

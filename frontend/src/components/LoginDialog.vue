@@ -120,6 +120,7 @@
 import { ref, reactive, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import { User, Lock } from '@element-plus/icons-vue'
+import { login, register } from '../api/authApi'
 
 // Props
 const props = defineProps({
@@ -212,18 +213,10 @@ const handleLogin = async () => {
     if (valid) {
       loading.value = true
       try {
-        const response = await fetch('/api/auth/login', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({
-            username: loginForm.username,
-            password: loginForm.password
-          })
+        const data = await login({
+          username: loginForm.username,
+          password: loginForm.password
         })
-        
-        const data = await response.json()
         
         if (data.success) {
           // 保存token到localStorage
@@ -254,18 +247,10 @@ const handleRegister = async () => {
     if (valid) {
       registerLoading.value = true
       try {
-        const response = await fetch('/api/auth/register', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({
-            username: registerForm.username,
-            password: registerForm.password
-          })
+        const data = await register({
+          username: registerForm.username,
+          password: registerForm.password
         })
-        
-        const data = await response.json()
         
         if (data.success) {
           ElMessage.success('注册成功！正在自动登录...')
