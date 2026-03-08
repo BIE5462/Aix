@@ -19,6 +19,7 @@ const pool = mysql.createPool({
 // JWT配置
 const JWT_SECRET = config.jwt.secret;
 const JWT_EXPIRES_IN = config.jwt.expiresIn;
+const getStoredPasswordHash = (user) => user?.password_hash || user?.password || null;
 
 // 用户认证服务
 const authService = {
@@ -43,8 +44,8 @@ const authService = {
       
       // 创建用户
       const [result] = await pool.execute(
-        'INSERT INTO users (username, email, password_hash) VALUES (?, ?, ?)',
-        [username, email, passwordHash]
+        'INSERT INTO users (username, email, password_hash, password) VALUES (?, ?, ?, ?)',
+        [username, email, passwordHash, passwordHash]
       );
       
       const userId = result.insertId;
@@ -82,7 +83,7 @@ const authService = {
       
       // 查找用户
       const [users] = await pool.execute(
-        'SELECT id, username, email, password_hash FROM users WHERE (username = ? OR email = ?) AND is_active = TRUE',
+        'SELECT id, username, email, password_hash, password FROM users WHERE (username = ? OR email = ?) AND is_active = TRUE',
         [username, username]
       );
       
@@ -91,9 +92,14 @@ const authService = {
       }
       
       const user = users[0];
+      const storedPasswordHash = getStoredPasswordHash(user);
+
+      if (!storedPasswordHash) {
+        throw new Error('用户密码数据缺失');
+      }
       
       // 验证密码
-      const isValidPassword = await bcrypt.compare(password, user.password_hash);
+      const isValidPassword = await bcrypt.compare(password, storedPasswordHash);
       if (!isValidPassword) {
         throw new Error('用户名或密码错误');
       }
@@ -256,6 +262,9 @@ const authService = {
   // 比较密码（用于管理员登录）
   async comparePassword(password, hashedPassword) {
     try {
+      if (!hashedPassword) {
+        return false;
+      }
       return await bcrypt.compare(password, hashedPassword);
     } catch (error) {
       console.error('密码比较失败:', error);

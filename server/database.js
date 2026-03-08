@@ -24,7 +24,8 @@ const initDatabase = async () => {
         id INT AUTO_INCREMENT PRIMARY KEY,
         username VARCHAR(50) UNIQUE NOT NULL,
         email VARCHAR(100) UNIQUE NULL,
-        password VARCHAR(255) NOT NULL,
+        password_hash VARCHAR(255) NOT NULL,
+        password VARCHAR(255) NULL,
         is_admin TINYINT(1) DEFAULT 0,
         is_active TINYINT(1) DEFAULT 1,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -35,6 +36,30 @@ const initDatabase = async () => {
       )
     `);
     
+    try {
+      await pool.execute(`ALTER TABLE users ADD COLUMN password_hash VARCHAR(255) NULL AFTER email`);
+    } catch (alterError) {
+      if (alterError.code !== 'ER_DUP_FIELDNAME') {
+        throw alterError;
+      }
+    }
+
+    try {
+      await pool.execute(`ALTER TABLE users ADD COLUMN password VARCHAR(255) NULL AFTER password_hash`);
+    } catch (alterError) {
+      if (alterError.code !== 'ER_DUP_FIELDNAME') {
+        throw alterError;
+      }
+    }
+
+    await pool.execute(`
+      UPDATE users
+      SET password_hash = password
+      WHERE (password_hash IS NULL OR password_hash = '')
+        AND password IS NOT NULL
+        AND password != ''
+    `);
+
     // 为现有数据库添加 last_login_at 列（如果不存在）
     try {
       await pool.execute(`ALTER TABLE users ADD COLUMN last_login_at TIMESTAMP NULL COMMENT '最后登录时间'`);

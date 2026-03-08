@@ -300,15 +300,21 @@ const handleUseTemplate = ({ work, needLogin }) => {
       modelId: work.model_id || work.modelId,
       modelName: work.model_name || work.modelName,
       size: work.size,
-      contentType: work.content_type || work.contentType
+      contentType: work.content_type || work.contentType,
+      historyId: work.history_id || work.historyId,
+      workId: work.id
     })
-    
+
     emit('use-template', {
+      source: 'community-work',
+      id: work.id,
+      workId: work.id,
+      historyId: work.history_id || work.historyId || null,
       prompt: work.prompt,
-      modelId: work.model_id || work.modelId,  // 兼容两种字段名
-      modelName: work.model_name || work.modelName,  // 兼容两种字段名
+      modelId: work.model_id || work.modelId,
+      modelName: work.model_name || work.modelName,
       size: work.size,
-      contentType: work.content_type || work.contentType  // 兼容两种字段名
+      contentType: work.content_type || work.contentType
     })
   }
 }

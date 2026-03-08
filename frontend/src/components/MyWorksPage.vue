@@ -82,7 +82,7 @@ const props = defineProps({
   availableModels: { type: Array, default: () => [] },
   videoModels: { type: Array, default: () => [] }
 })
-const emit = defineEmits(['use-template', 'need-login'])
+const emit = defineEmits(['use-history', 'use-template', 'need-login'])
 
 provide('availableModels', computed(() => props.availableModels))
 provide('videoModels', computed(() => props.videoModels))
@@ -226,7 +226,7 @@ async function handlePublish(historyItem, selectedImageIndex) {
 }
 
 function handleUseHistory(historyItem) {
-  emit('use-template', historyItem)
+  emit('use-history', historyItem)
   showDetail.value = false
 }
 

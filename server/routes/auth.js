@@ -4,6 +4,7 @@ const { generateToken, authenticateToken } = require('../middleware/auth');
 const { getConnection } = require('../database');
 
 const router = express.Router();
+const getStoredPasswordHash = (user) => user?.password_hash || user?.password || null;
 
 /**
  * 用户注册
@@ -50,8 +51,8 @@ router.post('/register', async (req, res) => {
 
     // 创建用户
     const [result] = await connection.execute(
-      'INSERT INTO users (username, password, email) VALUES (?, ?, NULL)',
-      [username, hashedPassword]
+      'INSERT INTO users (username, password_hash, password, email) VALUES (?, ?, ?, NULL)',
+      [username, hashedPassword, hashedPassword]
     );
 
     // 生成JWT令牌
@@ -101,7 +102,7 @@ router.post('/login', async (req, res) => {
 
     // 查找用户
     const [users] = await connection.execute(
-      'SELECT id, username, password FROM users WHERE username = ?',
+      'SELECT id, username, password_hash, password FROM users WHERE username = ?',
       [username]
     );
 
@@ -113,9 +114,17 @@ router.post('/login', async (req, res) => {
     }
 
     const user = users[0];
+    const storedPasswordHash = getStoredPasswordHash(user);
+
+    if (!storedPasswordHash) {
+      return res.status(500).json({
+        success: false,
+        message: '用户密码数据缺失'
+      });
+    }
 
     // 验证密码
-    const isPasswordValid = await bcrypt.compare(password, user.password);
+    const isPasswordValid = await bcrypt.compare(password, storedPasswordHash);
     if (!isPasswordValid) {
       return res.status(401).json({
         success: false,
@@ -250,8 +259,8 @@ router.post('/forgot-password', async (req, res) => {
 
     // 更新密码
     await connection.execute(
-      'UPDATE users SET password = ? WHERE username = ?',
-      [hashedPassword, username]
+      'UPDATE users SET password_hash = ?, password = ? WHERE username = ?',
+      [hashedPassword, hashedPassword, username]
     );
 
     res.json({

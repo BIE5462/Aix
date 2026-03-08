@@ -34,6 +34,7 @@
         v-else-if="activePage === 'my-works'"
         :available-models="availableModels"
         :video-models="videoModels"
+        @use-history="handleUseHistoryConfig"
         @use-template="handleUseTemplate"
         @need-login="showLoginDialog = true"
       />
@@ -131,7 +132,7 @@
 
               <el-tab-pane label="生成历史" name="history">
                 <div class="tab-content">
-                  <HistoryPanel ref="historyPanelRef" @select-history="loadFromHistory" />
+                  <HistoryPanel ref="historyPanelRef" @select-history="handleUseHistoryConfig" />
                 </div>
               </el-tab-pane>
             </el-tabs>
@@ -1321,8 +1322,9 @@ import AIPromptGenerator from './components/AIPromptGenerator.vue'
 import BatchPromptHistoryPanel from './components/BatchPromptHistoryPanel.vue'
 import PromptOptimizer from './components/PromptOptimizer.vue'
 import MyWorksPage from './components/MyWorksPage.vue'
-import { generateImages, getGenerationResult, getAvailableModels } from './api/imageApi'
+import { generateImages, getGenerationResult, getAvailableModels, getHistory } from './api/imageApi'
 import { generateVideo, getVideoResult, getVideoGenerationStatus, getVideoModels } from './api/videoApi'
+import { getWorkDetail } from './api/worksApi'
 
 // 页面导航状态
 // 从localStorage恢复页面状态，如果没有则使用默认值 'home'
@@ -4676,7 +4678,14 @@ const loadFromHistory = async (historyItem) => {
   imageSize.value = historyItem.size
   generationMode.value = historyItem.mode
   generateQuantity.value = historyItem.quantity || 1
-  
+
+  if (historyItem.modelId) {
+    const modelId = typeof historyItem.modelId === 'string' ? parseInt(historyItem.modelId) : historyItem.modelId
+    if (!Number.isNaN(modelId)) {
+      selectedModelId.value = modelId
+    }
+  }
+
   // 清空当前的上传图片
   uploadedImages.value = []
   uploadedFiles.value = []
@@ -7149,6 +7158,165 @@ const handleNavigate = (page) => {
   activePage.value = page
 }
 
+// 使用历史配置：先跳转工作区，再恢复历史记录
+const handleUseHistoryConfig = async (historyItem) => {
+  activePage.value = 'workspace'
+  await nextTick()
+  await loadFromHistory(historyItem)
+}
+
+const normalizeReferenceImageIds = (referenceImages) => {
+  if (!Array.isArray(referenceImages)) return []
+
+  return referenceImages
+    .map(image => {
+      if (typeof image === 'number') return image
+      if (typeof image === 'string') {
+        const parsed = parseInt(image, 10)
+        return Number.isNaN(parsed) ? null : parsed
+      }
+      if (image && typeof image === 'object') {
+        const id = image.dbId ?? image.id
+        const parsed = typeof id === 'string' ? parseInt(id, 10) : id
+        return Number.isNaN(parsed) ? null : parsed
+      }
+      return null
+    })
+    .filter(id => Number.isInteger(id) && id > 0)
+}
+
+const buildHistoryItemFromWorkDetail = (workDetail) => {
+  if (!workDetail) return null
+
+  const contentType = workDetail.contentType || workDetail.content_type
+  const isVideo = contentType === 'video'
+  const normalizedVideoData = workDetail.videoData || workDetail.video_data || null
+  const referenceImages = workDetail.referenceImages || workDetail.reference_images || []
+
+  const historyItem = {
+    id: workDetail.historyId || workDetail.history_id || workDetail.id,
+    prompt: workDetail.prompt || '',
+    mode: isVideo ? 'video-generation' : (workDetail.mode || workDetail.generationMode || 'text-to-image'),
+    size: workDetail.size || '',
+    quantity: workDetail.quantity || 1,
+    modelId: workDetail.modelId ?? workDetail.model_id ?? null,
+    modelName: workDetail.modelName || workDetail.model_name || '',
+    referenceImages,
+    selectedReferenceImages: normalizeReferenceImageIds(referenceImages),
+    videoData: normalizedVideoData,
+    createdAt: workDetail.createdAt || workDetail.created_at || new Date().toISOString(),
+    generatedImages: []
+  }
+
+  if (isVideo) {
+    const videoUrl = normalizedVideoData?.video_url || normalizedVideoData?.url || workDetail.coverUrl || workDetail.cover_url || ''
+    historyItem.videoUrl = videoUrl
+    historyItem.generatedImages = videoUrl
+      ? [{ url: videoUrl, duration: normalizedVideoData?.duration, resolution: normalizedVideoData?.resolution, ratio: normalizedVideoData?.ratio }]
+      : []
+  } else {
+    const imageUrl = workDetail.coverUrl || workDetail.cover_url || ''
+    historyItem.generatedImages = imageUrl ? [{ url: imageUrl }] : []
+  }
+
+  return historyItem
+}
+
+const restoreWorkTemplateConfig = async (template) => {
+  if (!template) return
+
+  activePage.value = 'workspace'
+  await nextTick()
+
+  const contentType = template.contentType || template.content_type
+  const modelIdRaw = template.modelId ?? template.model_id
+  const normalizedModelId = typeof modelIdRaw === 'string' ? parseInt(modelIdRaw, 10) : modelIdRaw
+
+  if (contentType === 'video') {
+    generationMode.value = 'image-to-video'
+    await nextTick()
+
+    if (template.prompt) {
+      if (videoMultilineTagInputRef.value) videoMultilineTagInputRef.value.setFullText(template.prompt)
+      else prompt.value = template.prompt
+    }
+
+    if (!Number.isNaN(normalizedModelId) && normalizedModelId !== null && normalizedModelId !== undefined) {
+      videoSelectedModelId.value = normalizedModelId
+    }
+
+    const videoData = template.videoData || template.video_data
+    if (videoData) {
+      if (videoData.duration !== undefined && videoData.duration !== null && videoData.duration !== '') {
+        videoDuration.value = videoData.duration
+      }
+      if (videoData.resolution) {
+        videoResolution.value = videoData.resolution
+      }
+      if (videoData.ratio) {
+        videoRatio.value = videoData.ratio
+        videoAspectRatio.value = videoData.ratio
+      }
+      if (videoData.hd !== undefined) {
+        videoHd.value = !!videoData.hd
+      }
+      if (videoData.watermark !== undefined) {
+        videoWatermark.value = !!videoData.watermark
+      }
+      if (videoData.cameraFixed !== undefined) {
+        videoCameraFixed.value = !!videoData.cameraFixed
+      }
+      if (videoData.returnLastFrame !== undefined) {
+        videoReturnLastFrame.value = !!videoData.returnLastFrame
+      }
+      if (videoData.seed !== undefined) {
+        videoSeed.value = videoData.seed
+      }
+      if (videoData.enhancePrompt !== undefined) {
+        videoEnhancePrompt.value = !!videoData.enhancePrompt
+      }
+      if (videoData.enableUpsample !== undefined) {
+        videoEnableUpsample.value = !!videoData.enableUpsample
+      }
+      if (videoData.negativePrompt !== undefined) {
+        videoNegativePrompt.value = videoData.negativePrompt || ''
+      }
+      if (videoData.promptExtend !== undefined) {
+        videoPromptExtend.value = !!videoData.promptExtend
+      }
+      if (videoData.size) {
+        videoSize.value = videoData.size
+      }
+    }
+
+    return
+  }
+
+  generationMode.value = template.mode || template.generationMode || 'text-to-image'
+  await nextTick()
+
+  if (template.prompt) {
+    if (multilineTagInputRef.value) multilineTagInputRef.value.setFullText(template.prompt)
+    else prompt.value = template.prompt
+  }
+
+  if (!Number.isNaN(normalizedModelId) && normalizedModelId !== null && normalizedModelId !== undefined) {
+    selectedModelId.value = normalizedModelId
+  }
+
+  if (template.size) {
+    imageSize.value = template.size
+  }
+
+  if (template.quantity) {
+    generateQuantity.value = template.quantity
+  }
+
+  if (template.imageResolution) {
+    imageResolution.value = template.imageResolution
+  }
+}
+
 // 从提示词优化页面填入工作区主提示词输入框
 const handleFillFromOptimizer = (prompts) => {
   activePage.value = 'workspace'
@@ -7172,13 +7340,42 @@ const handleFillBatchFromOptimizer = (prompts) => {
 }
 
 // 处理使用模板
-const handleUseTemplate = (template) => {
-  activePage.value = 'workspace'
-  // 这里可以根据template设置相应的提示词和参数
-  if (template.prompt) {
-    if (multilineTagInputRef.value) {
-      multilineTagInputRef.value.setFullText(template.prompt)
+const handleUseTemplate = async (template) => {
+  if (!template) return
+
+  try {
+    if (template.source === 'community-work') {
+      const workId = template.workId || template.id
+      if (!workId) {
+        await restoreWorkTemplateConfig(template)
+        return
+      }
+
+      const detailResponse = await getWorkDetail(workId)
+      const workDetail = detailResponse?.data?.data || detailResponse?.data || detailResponse
+
+      if (workDetail?.historyId) {
+        const historyResponse = await getHistory({ page: 1, pageSize: 200 })
+        const historyList = historyResponse?.data || []
+        const matchedHistory = historyList.find(item => Number(item.id) === Number(workDetail.historyId))
+        if (matchedHistory) {
+          await handleUseHistoryConfig(matchedHistory)
+          return
+        }
+      }
+
+      const fallbackHistoryItem = buildHistoryItemFromWorkDetail(workDetail)
+      if (fallbackHistoryItem) {
+        await handleUseHistoryConfig(fallbackHistoryItem)
+        return
+      }
     }
+
+    await restoreWorkTemplateConfig(template)
+  } catch (error) {
+    console.error('使用模板失败:', error)
+    await restoreWorkTemplateConfig(template)
+    ElMessage.warning('部分参数未能完整恢复，已为你填入可用配置')
   }
 }
 

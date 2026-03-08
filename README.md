@@ -270,6 +270,18 @@ The platform uses a credit system to control AI model usage:
 
 ### Production Deployment
 
+Docker Compose production files in this repo now assume:
+
+- Backend listens on `8088`
+- Backend health checks use `http://localhost:8088`
+- Frontend Nginx config is versioned at `nginx/nginx.conf` and `nginx/conf.d/default.conf`
+
+You can start the production stack with:
+
+```bash
+docker compose -f docker-compose.production.yml up -d
+```
+
 1. **Build frontend**
 ```bash
 cd frontend

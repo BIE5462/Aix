@@ -102,7 +102,7 @@
         
         <!-- 操作按钮区 -->
         <div class="action-buttons">
-          <el-button 
+          <el-button
             v-if="canPublish"
             type="primary"
             size="large"
@@ -111,8 +111,28 @@
           >
             发布到首页
           </el-button>
-          
-          <el-button 
+
+          <el-button
+            v-if="canDownloadImage"
+            type="info"
+            size="large"
+            @click="handleDownloadImage"
+            :icon="Download"
+          >
+            下载图片
+          </el-button>
+
+          <el-button
+            v-if="canDownloadVideo"
+            type="info"
+            size="large"
+            @click="handleDownloadVideo"
+            :icon="Download"
+          >
+            下载视频
+          </el-button>
+
+          <el-button
             v-if="!isSaved"
             type="success"
             size="large"
@@ -152,7 +172,7 @@
 <script setup>
 import { ref, computed, watch, inject } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { DocumentCopy, Upload, FolderAdd, Edit, Delete, Warning } from '@element-plus/icons-vue'
+import { DocumentCopy, Upload, Download, FolderAdd, Edit, Delete, Warning } from '@element-plus/icons-vue'
 import { deleteHistory } from '../api/imageApi'
 
 const props = defineProps({
@@ -221,10 +241,41 @@ const getImageUrl = (image) => {
   return image.url || image
 }
 
+// 获取下载图片URL
+const getDownloadImageUrl = (image) => {
+  if (!image) return ''
+  if (typeof image === 'string') return image
+  return image.originalUrl || image.ossUrl || image.oss_url || image.url || ''
+}
+
+// 判断是否需要通过代理下载
+const needsProxyDownload = (url) => {
+  if (!url) return false
+
+  return (
+    url.includes('creatimage.oss-cn-beijing.aliyuncs.com') ||
+    url.includes('tos-cn-beijing.volces.com') ||
+    url.includes('ark-content-generation') ||
+    (url.startsWith('http') && !url.includes('localhost'))
+  )
+}
+
 // 是否可以发布
 const canPublish = computed(() => {
   if (!props.historyItem) return false
   return props.historyItem.generatedImages?.length > 0 || props.historyItem.videoUrl
+})
+
+// 是否可以下载图片
+const canDownloadImage = computed(() => {
+  if (!props.historyItem?.generatedImages?.length) return false
+  const currentImage = props.historyItem.generatedImages[selectedImageIndex.value]
+  return !!getDownloadImageUrl(currentImage)
+})
+
+// 是否可以下载视频
+const canDownloadVideo = computed(() => {
+  return !!props.historyItem?.videoUrl
 })
 
 // 是否已保存
@@ -308,6 +359,101 @@ const handleUse = () => {
 // 发布
 const handlePublish = () => {
   emit('publish', props.historyItem)
+}
+
+// 下载图片
+const handleDownloadImage = async () => {
+  try {
+    const currentImage = props.historyItem?.generatedImages?.[selectedImageIndex.value]
+    const downloadUrl = getDownloadImageUrl(currentImage)
+
+    if (!downloadUrl) {
+      ElMessage.error('当前图片不可下载')
+      return
+    }
+
+    let response
+    if (needsProxyDownload(downloadUrl)) {
+      response = await fetch(`/api/proxy-image?url=${encodeURIComponent(downloadUrl)}`, {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        }
+      })
+    } else {
+      response = await fetch(downloadUrl)
+    }
+
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}`)
+    }
+
+    const blob = await response.blob()
+    const blobUrl = URL.createObjectURL(blob)
+    const extension = blob.type?.split('/')[1] || 'png'
+    const link = document.createElement('a')
+    link.href = blobUrl
+    link.download = `history-image-${selectedImageIndex.value + 1}-${Date.now()}.${extension}`
+    link.target = '_self'
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+
+    setTimeout(() => {
+      URL.revokeObjectURL(blobUrl)
+    }, 100)
+
+    ElMessage.success('图片下载成功')
+  } catch (error) {
+    console.error('下载图片失败:', error)
+    ElMessage.error('图片下载失败')
+  }
+}
+
+// 下载视频
+const handleDownloadVideo = async () => {
+  try {
+    const videoUrl = props.historyItem?.videoUrl
+
+    if (!videoUrl) {
+      ElMessage.error('当前视频不可下载')
+      return
+    }
+
+    let response
+    if (needsProxyDownload(videoUrl)) {
+      response = await fetch(`/api/proxy-image?url=${encodeURIComponent(videoUrl)}`, {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        }
+      })
+    } else {
+      response = await fetch(videoUrl)
+    }
+
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}`)
+    }
+
+    const blob = await response.blob()
+    const blobUrl = URL.createObjectURL(blob)
+    const extension = blob.type?.split('/')[1] || 'mp4'
+    const link = document.createElement('a')
+    link.href = blobUrl
+    link.download = `history-video-${Date.now()}.${extension}`
+    link.target = '_self'
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+
+    setTimeout(() => {
+      URL.revokeObjectURL(blobUrl)
+    }, 100)
+
+    ElMessage.success('视频下载成功')
+  } catch (error) {
+    console.error('下载视频失败:', error)
+    ElMessage.error('视频下载失败')
+  }
 }
 
 // 保存

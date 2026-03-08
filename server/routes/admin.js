@@ -40,7 +40,7 @@ router.post('/login', async (req, res) => {
     
     const pool = getConnection();
     const [users] = await pool.execute(
-      'SELECT * FROM users WHERE username = ? AND is_admin = 1',
+      'SELECT id, username, email, is_admin, is_active, created_at, updated_at, password_hash, password FROM users WHERE username = ? AND is_admin = 1',
       [username]
     );
     
@@ -49,9 +49,10 @@ router.post('/login', async (req, res) => {
     }
     
     const user = users[0];
+    const storedPasswordHash = user.password_hash || user.password;
     
     // 验证密码
-    const isValidPassword = await authService.comparePassword(password, user.password);
+    const isValidPassword = await authService.comparePassword(password, storedPasswordHash);
     if (!isValidPassword) {
       return res.status(401).json({ error: '密码错误' });
     }
